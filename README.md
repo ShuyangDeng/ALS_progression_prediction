@@ -17,7 +17,7 @@ Results and cvs are in files directory
 ## Data preprocessing
 PROACT dataset has 13 csv files, which contains from over 10,000 ALS patients from 23 completed clinical trials. What we need is the trial information taken between 0-3 months, then select significant features that contribute to ALS progression, resulting in good prediction for 3-12 months ALS progression. Final dataset after processing contains 3637 patients and 50 features, saved as ALS_Slope_FINAL3.csv in directory "files".
 <br>
-** Process rules **
+### Process rules
 <br>
 1. Filter PROACT data whose delta is less than 91 for each csv file
 <br>
