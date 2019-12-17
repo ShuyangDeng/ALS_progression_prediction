@@ -3,7 +3,7 @@
 Amyotrophic Lateral Sclerosis (ALS) is a kind of disease that involves the death and degeneration of the nerve cells in the brain and spinal cord. Prognosis of ALS is heterogeneous. So progression prediction allows significant contribution for patient care. This Dream sub challenge is to fit the model developed using 0-3 months clinical trial dataset to 3-12 months progression and the broader ALS population. We cannot get access to broader ALS data, just focused on the 1st task.
 <br>
 ## Methods
-We applied random forest, GBM models. Prediction of 3-12 months ALS slope performed better of random forest than gbm, with around RMSE 0.094 and 0.043 for cluster1 and cluster2. (R studio)
+We applied random forest, GBM models. Prediction of 3-12 months ALS slope performed better of random forest than gbm, with around RMSE 0.053 and 0.043 for cluster1 and cluster2. (R studio)
 <br>
 ## Directory usage
 machine learning project 2018 Fall
