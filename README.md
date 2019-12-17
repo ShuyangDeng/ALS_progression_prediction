@@ -24,6 +24,6 @@ PROACT dataset has 13 csv files, which contains from over 10,000 ALS patients fr
 >4. Impute missing data using the Multivariate Imputation by Chained Equations (MICE) via cart method in the mice library
 >5. Only keep ALSFRS_Total, not ALSFRS_R_Total. ALSFRS_Total and ALSFRS_Delta were used to calculate the ALSFRS_Slope
 <br>
-<br>
 References:
+<br>
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5099532/pdf/ACN3-3-866.pdf
