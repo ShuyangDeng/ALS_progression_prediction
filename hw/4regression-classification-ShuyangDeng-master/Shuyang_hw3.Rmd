@@ -1,0 +1,155 @@
+---
+title: "HW3"
+author: "Shuyang"
+date: "Fall 2018"
+fontsize: 11pt 
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+
+# Regression
+
+```{r, include=FALSE}
+library(caret)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(devtools)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(mlbench)
+library(randomForest)
+#Mauna Loa CO2 concentrations
+
+data(BreastCancer)
+BreastCancer = na.omit(BreastCancer)
+```
+
+1. Split into training and test set 
+```{r}
+data(BreastCancer)
+
+#split into training and test set 
+trainsize <- floor(0.75 * nrow(BreastCancer))
+set.seed(121)
+trainpos <- sample(seq_len(nrow(BreastCancer)), size = trainsize)
+trainclassifier <- BreastCancer[trainpos,]
+testclassifier <- BreastCancer[-trainpos,]
+
+testclassifier <- testclassifier[complete.cases(testclassifier),]
+dim(trainclassifier)
+dim(testclassifier)
+
+```
+2. Train and fit model 
+```{r}
+#only look at two classes 
+trainclassifier_log <- trainclassifier[c(which(trainclassifier$Class == "benign"), which(trainclassifier$Class == "malignant")),]
+testclassifier_log <- testclassifier[c(which(test_classifier$Class == "benign"), which(testclassifier$Class == "malignant")),]
+
+trainclassifier_log$Class <- factor(trainclassifier_log$Class)
+testclassifier_log$Class <- factor(testclassifier_log$Class)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 15,classProbs = T, savePredictions = T)
+
+#create model. logistic regression is a bionomial general linear model. 
+#predict species based on sepal length
+logisticregression <- train(Class~ Cell.size, data = trainclassifier_log, method = "glm", family= "binomial", trControl = ctrl)
+```
+
+```{r}
+logisticregression
+```
+```{r}
+summary(logisticregression)
+```
+
+3. Visualize ROC curve 
+```{r}
+plot(x = roc(predictor = logisticregression$pred$benign, response = logisticregression$pred$obs)$specificities, y = roc(predictor = logisticregression$pred$benign, response = logisticregression$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+legend("bottomright", legend = paste("benign v malignant --", roc(predictor = logisticregression$pred$benign, response = logisticregression$pred$obs)$auc
+, sep = ""), col = c("blue"), fill = c("blue"))
+```
+
+4. Test on an independent set
+```{r}
+logisticregression_predict_class <- predict(logisticregression, newdata = testclassifier_log)
+
+
+table(logisticregression_predict_class, reference = testclassifier_log$Class)
+
+length(logisticregression_predict_class)
+length(testclassifier_log$Class)
+
+# There is an error: `data` and `reference` should be factors with the same levels. But I check the length and also omit the missing value of the data in the begining. Why is that? Then I change to use table function.
+```
+
+
+
+
+
+
+
+```{r}
+LDA <- lda(Class~ Cell.size + Cell.shape + Cl.thickness + Bare.nuclei, data= trainclassifier, cv= T)
+```
+
+```{r}
+LDA
+```
+
+4. Test model on test set 
+```{r}
+#predict the species of the test data
+LDA_predict <- predict(LDA, newdata=testclassifier)
+confusionMatrix(LDA_predict$class, reference = testclassifier$Class)
+```
+
+
+## Naive Bayes Classifier
+
+* Independent variables should not be correlated 
+
+2. Train model
+```{r }
+ctrl <- trainControl(method='repeatedcv', repeats = 5, classProbs =T, savePredictions =T)
+trainclassifier <- trainclassifier[complete.cases(trainclassifier),]
+naive_bayes <- train(Class ~ Cell.size + Cell.shape + Cl.thickness + Bare.nuclei, data= trainclassifier, trControl = ctrl)
+```
+
+```{r}
+naive_bayes
+```
+
+3. Visualize ROC curve
+
+```{r}
+versivvirg <- roc(predictor = naive_bayes$pred$virginica, response = naive_bayes$pred$obs, levels = c("versicolor", "virginica"))$auc
+#setosvvirg <- roc(predictor = naive_bayes$pred$virginica, response = naive_bayes$pred$obs, levels = c("setosa", "virginica"))$auc
+#versivsetosa <- roc(predictor = naive_bayes$pred$virginica, response = naive_bayes$pred$obs, levels = c("versicolor", "setosa"))$auc
+
+#plot(x = roc(predictor = naive_bayes$pred$virginica, response = naive_bayes$pred$obs, levels= c("versicolor", "virginica"))$specificities, y = roc(predictor = naive_bayes$pred$virginica, response = naive_bayes$pred$obs, levels= c("versicolor", "virginica"))$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+#lines(x = roc(predictor = naive_bayes$pred$setosa, response = naive_bayes$pred$obs, levels= c("setosa", "virginica"))$specificities, y = roc(predictor = naive_bayes$pred$setosa, response = naive_bayes$pred$obs, levels= c("setosa", "virginica"))$sensitivities, col= "red",  type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+#lines(x = roc(predictor = naive_bayes$pred$versicolor, response = naive_bayes$pred$obs, levels= c("versicolor", "setosa"))$specificities, y = roc(predictor = naive_bayes$pred$versicolor, response = naive_bayes$pred$obs, levels= c("versicolor", "setosa"))$sensitivities, col= "green",  type ="l", ylab = "Sensitivity", xlab = "Specificity")
+
+#legend("bottomright", legend = c(paste("versicolor v virginica --", versivvirg, sep = ""), paste("setosa v virginica -- ", setosvvirg, sep = ""), paste("versicolor v setosa -- ", versivsetosa, sep ="")), fill =c("blue","red","green"),  col = c("blue","red","green"))
+
+```
+
+4. Test model
+```{r}
+naive_bayes_pred <- predict(naive_bayes, newdata=testclassifier)
+confusionMatrix(naive_bayes, reference = testclassifier$Class)
+```
+
+
+
+

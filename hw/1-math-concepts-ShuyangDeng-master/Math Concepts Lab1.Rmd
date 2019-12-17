@@ -1,0 +1,128 @@
+---
+title: "Math Concepts"
+author: "Anna Yeaton"
+date: "Fall 2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+# Math Concepts 
+
+In this lab, we will go over math concepts that serve as a foundation for the unsupervised learning class. We will go over standard deviation, variance, covariance, eigen values, and eigen vectors.
+
+##Distributions 
+
+```{r}
+#Gaussian(normal) distribution
+normal_dist <- rnorm(n = 100, mean = 10, sd = 5)
+plot(normal_dist, ylab="Y", xlab = "X")
+hist(normal_dist)
+
+#exponential distribution
+exponential_dist <- rexp(n=100, rate =1)
+plot(exponential_dist, ylab="Y", xlab = "X")
+hist(exponential_dist)
+
+#lognormal distribution
+lognormal_distribution <- rlnorm(100, meanlog = 10, sdlog = 5)
+plot(lognormal_distribution,  ylab="Y", xlab = "X")
+hist(lognormal_distribution)
+hist(log(lognormal_distribution))
+```
+
+
+## Variance
+
+$$variance=\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(x_i - \bar{x})$$ 
+Variance is a measurememt of the spread of data.
+
+```{r }
+#the spread of this set of values 
+spread_ex1 <- c(1,2,1,2,1,2,1,2,1,2)
+
+#is much different from the spread of this set of values
+spread_ex2 <- c(2,5,8,10,1,35,67,32,89,100)
+
+```
+
+Calculate the variance of spread_ex1 and spread_ex2
+
+```{r}
+var(spread_ex1)
+
+var(spread_ex2)
+
+```
+
+## Standard deviation
+
+
+
+$$stdv=\sqrt{\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(x_i - \bar{x})}$$ 
+
+
+Standard deviation is also a measurememt of the spread of data. It is the square root of the variance.
+
+Calculate the standard deviations of spread_ex1 and spread_ex2
+
+```{r }
+sd(spread_ex1)
+
+sd(spread_ex2)
+```
+
+##Covariance
+
+Covariance is a measure of the variance of two random variables with respect to each other. In other words, covariance is a measure of linear dependence between two random variables. 
+
+$$covariance=\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})$$ 
+
+```{r}
+cov_ex1 <- data.frame(spread_ex1, spread_ex2)
+```
+
+Calculate the covariance of cov_ex1 between spread_ex1 and spread_ex2
+
+```{r}
+
+cov(cov_ex1$spread_ex1, cov_ex1$spread_ex2)
+
+```
+
+
+Calculate the covariance matrix of cov_ex1. Did you see any of these values before?
+
+```{r}
+cov(cov_ex1)
+```
+
+
+## Eigen vectors and Eigen values
+
+Eigen vectors and Eigen values come in pairs. An eigen vector is a direction, and the corresponding eigen value tells how much the data varies in that direction. You can only calculate eigen vectors and values for n x n matrices. For an n x n matrix, there will be n eigen values and eigen vectors. Eigen vectors are perpendicular to each other. The eigen vector with the highest eigen value is the principal component. 
+
+So how do you find an eigen vector? Why is it one direction and not another? 
+The eigen vector is special in that when a linear transformation is applied to it, the direction of the vector does not change. 
+
+You can project the data onto an eigen vector space instead of on the X and Y axis. This is the visualization for PCA. 
+
+
+## Matrix operations
+http://home.cc.umanitoba.ca/~thomas/Courses/MatrixMultPractice.pdf
+
+
+
+
+
+
+
+
+

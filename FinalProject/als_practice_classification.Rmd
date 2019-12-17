@@ -1,0 +1,185 @@
+---
+title: "Als_classification"
+author: "Shuyang"
+date: "10/22/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+```{r, include=FALSE}
+library(caret)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(devtools)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(tidyverse)
+library(Hmisc)
+```
+
+```{r eval=TRUE}
+ALS_FINAL <- read.csv("ALS_FINAL.csv")
+ALS_FINAL <- select(ALS_FINAL, -X)
+head(ALS_FINAL)
+```
+
+```{r eval=TRUE}
+training_set_size <- floor(0.75 * nrow(ALS_FINAL))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(ALS_FINAL)), size = training_set_size)
+training_set <- ALS_FINAL[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set <- ALS_FINAL[-train_samples, ]
+
+dim(training_set)
+```
+```{r}
+library(factoextra)
+fviz_nbclust(ALS_FINAL, clara, method = "silhouette")
+```
+
+
+```{r eval=TRUE}
+cluster<-clara(ALS_FINAL[,-1],k = 2)
+clusters <- cluster$clustering
+training_set_clusters <- ALS_FINAL %>% mutate(Cluster_Number=clusters)
+#first cluster
+training_set_cluster_1 <- training_set_clusters %>% filter(Cluster_Number==1) %>% select(-subject_id)
+training_set_cluster_1 <- as.data.frame(training_set_cluster_1)
+#second cluster
+training_set_cluster_2 <- training_set_clusters %>% filter(Cluster_Number==2) %>% select(-subject_id)
+training_set_cluster_2 <- as.data.frame(training_set_cluster_2)
+```
+
+
+
+```{r}
+training_set_clusters$Cluster_Number <- as.factor(training_set_clusters$Cluster_Number)
+autoplot(cluster, data=training_set_clusters, colour="Cluster_Number") + labs(title="CLARA Clustering", x="PC1", y="PC2", color="Cluster_Number")
+```
+
+```{r}
+training_set_cluster_1_file <- training_set_clusters %>% filter(Cluster_Number==1) %>% select(subject_id, ALSFRS_Slope, Q2_Salivation, Q3_Swallowing, Bulbar_Onset, Subject_Liters_Trial_1, ALSFRS_Total, Limb_Onset)
+write.csv(training_set_cluster_1_file, file = "cluster_1.csv")
+
+#cluster 2
+training_set_cluster_2_file <- training_set_clusters %>% filter(Cluster_Number==2) %>% select(subject_id, ALSFRS_Slope, Q3_Swallowing, Q2_Salivation, Bulbar_Onset, Limb_Onset, Q7_Turning_in_Bed,Subject_Liters_Trial_1)
+write.csv(training_set_cluster_2_file, file = "cluster_2.csv")
+```
+
+```{r}
+head(training_set_cluster_1_file)
+head(training_set_cluster_2_file) 
+
+```
+
+```{r}
+training_set_size <- floor(0.75 * nrow(training_set_cluster_1_file))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(training_set_cluster_1_file)), size = training_set_size)
+training_set_clus1 <- training_set_cluster_1_file[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set_clus1 <- training_set_cluster_1_file[-train_samples, ]
+
+dim(training_set_clus1)
+```
+
+```{r}
+library(randomForest)
+library(dplyr)
+library(gridExtra)
+library(ggplot2)
+
+set.seed(30495)
+#train the training set via random forests 
+RF_slope <- randomForest(ALSFRS_Slope ~ . -subject_id, data=training_set_clus1, importance = TRUE, oob.times = 15, confusion = TRUE)
+RF_slope
+
+```
+
+```{r}
+test_RF_slope <- predict (RF_slope , newdata =test_set_clus1)
+test_RF_slope
+```
+
+```{r}
+RMSE(test_set_clus1$ALSFRS_Slope, test_RF_slope)
+```
+
+```{r}
+cor.test(unlist(test_set_clus1$ALSFRS_Slope), unlist(test_RF_slope))
+```
+
+```{r}
+CLUSTER_2 <- read_csv("cluster_2.csv")
+CLUSTER_2 <- CLUSTER_2 %>% select(-X1)
+head(CLUSTER_2)
+```
+
+
+```{r}
+training_set_size <- floor(0.75 * nrow(CLUSTER_2))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(CLUSTER_2)), size = training_set_size)
+training_set_clus2 <- CLUSTER_2[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set_clus2 <- CLUSTER_2[-train_samples, ]
+
+dim(training_set_clus2)
+dim(test_set_clus2)
+```
+
+```{r}
+set.seed(30495)
+#train the training set via random forests 
+RF_slope <- randomForest(ALSFRS_Slope ~ . -subject_id, data=training_set_clus2, importance = TRUE, oob.times = 15, confusion = TRUE)
+RF_slope
+```
+
+```{r}
+baseline_mean <- mean(training_set_clus2$ALSFRS_Slope)
+baseline_mean
+```
+
+```{r}
+RMSE.baseline <- sqrt(mean((baseline_mean-test_set_clus2$ALSFRS_Slope)^2))
+RMSE.baseline
+```
+ 
+```{r}
+test_RF_slope <- predict (RF_slope , newdata =test_set_clus2)
+test_RF_slope
+```
+
+```{r}
+RMSE(test_set_clus2$ALSFRS_Slope, test_RF_slope)
+```
+
+```{r}
+cor.test(unlist(test_set_clus2$ALSFRS_Slope), unlist(test_RF_slope))
+```
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+```
+
+

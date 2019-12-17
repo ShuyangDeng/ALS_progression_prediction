@@ -1,0 +1,35 @@
+---
+title: "Breast predict"
+author: "Shuyang"
+date: "11/16/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+bc_data <- read.table("/Users/dengshuyang/Desktop/breast-cancer-wisconsin.data.txt", header = FALSE, sep = ",")
+```
+
+```{r}
+library(TCGA2STAT)
+MESO <- getTCGA(disease = "MESO", data.type = "RNASeq2", clinical = T)
+```
+
+```{r}
+write.csv(MESO$dat, "meso.csv")
+write.csv(MESO$clinical, "meso_clinical.csv")
+```
+
+```{r}
+write.csv(MESO$dat, file="meso.csv")
+write.csv(MESO$clinical,file= "meso_clinical.csv")
+```
+
+```{r}
+bc_data <- read.table("/Users/dengshuyang/Desktop/breast-cancer-wisconsin.data.txt", header = FALSE, sep = ",")
+```
+

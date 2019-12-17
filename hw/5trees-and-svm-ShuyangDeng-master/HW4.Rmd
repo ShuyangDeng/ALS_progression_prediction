@@ -1,0 +1,399 @@
+---
+title: "HW4"
+author: "Shuyang"
+date: "10/11/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(randomForest)
+library(tree)
+library(caret)
+library(pROC)
+library(gbm)
+library(ROCR)
+```
+
+
+#Lab Section
+
+In this lab, we will go over tree-based regression, tree-based classification, bagging, random forest, boosting, and svm.
+
+# Perfomance Metrics 
+
+## Classification Error rate for Tree-based Regression and Classification
+
+The fraction of training observations in that region that do not belong to the most common class
+
+$$E=1-max_k(\hat{p}_{mk})$$
+Where $\hat{p}_{mk}$ is the proportion of the training observation in the mth region that are from the kth class. 
+
+
+## Hyperparameter search in caret:
+
+Grid search:  The user can specify the values in the grid, and the system goes through each combination of parameters. Or the system will automatically do a grid search and the user just specifies the number of attributes in the grid. 
+```{r}
+#Creating grid
+grid <- expand.grid(n.trees=c(10,20,50,100,500,1000),shrinkage=c(0.01,0.05,0.1,0.5),n.minobsinnode = c(3,5,10),interaction.depth=c(1,5,10))
+
+```
+
+
+Random Search: Specify random search in trainControl(), and specify the tune length in the train function.  
+
+\newpage
+
+# Tree-Based Regression
+
+Tree-Based regression uses recursive binary splitting, which is a top-down, greedy approach. The algorithm splits the predictor space into regions, with the objective of minimizing RSS within each region. 
+
+1. Create a tree
+
+2. Use cross validation to find the optimal number of nodes for the tree
+
+3. Prune tree accordingly
+
+We will use the tree package for the tree based methods, and the quakes dataset for the regression methods. 
+```{r}
+library(tree)
+
+library(RCurl)
+library(tidyverse)
+signs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/VitalSigns.csv")
+as.tibble(signs)
+```
+
+```{r}
+train_size <- floor(0.75 * nrow(signs))
+set.seed(541)
+train_pos <- sample(seq_len(nrow(signs)), size = train_size)
+
+train_regression <- signs[train_pos, ]
+test_regression <- signs[-train_pos, ]
+
+dim(train_regression)
+dim(test_regression)
+```
+
+
+Visualize data
+```{r}
+ggplot(data = train_regression, aes(x= Blood_Pressure_Diastolic, y = Blood_Pressure_Systolic, col = Weight)) +
+  geom_point( na.rm=TRUE) 
+```
+
+Use depth and longitude to predict magnitude
+```{r}
+#create tree
+set.seed(541)
+regression_tree <- tree(Weight ~ Blood_Pressure_Diastolic + Blood_Pressure_Systolic, data = train_regression)
+plot(regression_tree)
+text(regression_tree,cex=0.75)
+```
+
+```{r}
+summary(regression_tree)
+```
+
+Use cross validation to find the optimal number of nodes
+```{r}
+tree_complexity <- cv.tree(regression_tree, K = 15)
+
+#the tree with 8 nodes has the lowest deviance
+tree_complexity
+```
+
+Prune tree
+```{r}
+#prune.tree evaluates error of tree at various prunings and returns the best tree with X number of leaves
+tree_complexity_prune <- prune.tree(regression_tree, best = 2)
+```
+
+Visdualize partitions of the whole tree on the dataset
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = train_regression$Blood_Pressure_Diastolic, y = train_regression$Blood_Pressure_Systolic, pch = 19, col =  cols(10), main = "Not pruned")
+partition.tree(regression_tree,ordvars=c("Blood_Pressure_Diastolic","Blood_Pressure_Systolic"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'magnitude')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+
+
+#https://stackoverflow.com/questions/13355176/gradient-legend-in-base
+```
+
+Partitions of the pruned tree on the dataset
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = train_regression$Blood_Pressure_Diastolic, y = train_regression$Blood_Pressure_Systolic, pch = 19, col =  cols(10), main = "Pruned")
+partition.tree(tree_complexity_prune,ordvars=c("Blood_Pressure_Diastolic","Blood_Pressure_Systolic"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'magnitude')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+```
+
+Visualize tree on test set 
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = test_regression$Blood_Pressure_Diastolic, y = test_regression$Blood_Pressure_Systolic, pch = 19, col =  cols(10), main = "Pruned")
+partition.tree(tree_complexity_prune,ordvars=c("Blood_Pressure_Diastolic","Blood_Pressure_Systolic"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'magnitude')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+```
+
+
+\newpage
+
+# Tree-based Classification
+
+Tree-based classification also utilizes recursive binary splitting, but instead of minimizing RSS, the goal is to maximize node purity. Measures of node purity include Gini, Cross Entropy, and classification error. 
+
+1. Create a tree
+
+2. Use cross validation to find the optimal number of nodes for the tree
+
+3. Prune tree accordingly
+
+```{r}
+library(mlbench)
+death <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/DeathData.csv")
+
+Tem_Death <- signs %>% inner_join(death, by = 'subject_id' ) 
+train_size <- floor(0.75 * nrow(Tem_Death))
+set.seed(549)
+train_pos <- sample(seq_len(nrow(Tem_Death)), size = train_size)
+td <- filter(Tem_Death, subject_id<10000)
+
+td1 <- transform(td, Id = as.numeric(subject_id), Blood_Pressure_Systolic = as.numeric(Blood_Pressure_Systolic),
+                           Weight = as.numeric(Weight),
+                           Blood_Pressure_Diastolic = as.numeric(Blood_Pressure_Diastolic), Temperature = as.numeric(Temperature),
+                           Vital_Signs_Delta = as.numeric(Vital_Signs_Delta),
+                           Standing_Pulse = as.numeric(Standing_Pulse), Respiratory_Rate = as.numeric(Respiratory_Rate), 
+                           Subject_Died = as.numeric(Subject_Died),
+                           Pulse = as.numeric(Pulse))
+                           
+train_classification <- td1[train_pos, ]
+test_classification <- td1[-train_pos, ]
+
+dim(train_classification)
+dim(test_classification)
+```
+
+Visualize data
+```{r}
+par(mfrow= c(1,2))
+
+barplot(table(train_classification$Subject_Died,factor(train_classification$Temperature)),
+  xlab="Temperature", col=c("darkblue","red"),
+ 	legend = rownames(table(train_classification$Subject_Died,train_classification$Temperature)))
+
+barplot(table(train_classification$Subject_Died,factor(train_classification$Pulse)), 
+  xlab="Pulse", col=c("darkblue","red"),
+ 	legend = rownames(table(train_classification$Subject_Died,train_classification$Pulse)))
+
+```
+
+Create a classification tree
+```{r}
+set.seed(30490)
+classification_tree <- tree(Subject_Died ~ Temperature + Pulse + Blood_Pressure_Systolic, data = train_classification, split = "gini")
+plot(classification_tree)
+text(classification_tree,cex=0.45)
+```
+
+```{r}
+summary(classification_tree)
+```
+
+Test this tree on the test set
+```{r}
+classification_test <- predict(classification_tree, newdata = test_classification, type = "class")
+
+confusionMatrix(classification_test, reference = test_classification$Subject_Died)
+```
+
+Fit the tree using cross validation. Use FUN = prune.misclass to indicate we want to classification error to guide cross val and pruning. 
+```{r}
+fit_classification_tree <- cv.tree(classification_tree,FUN=prune.misclass, K = 15)
+```
+
+
+```{r}
+fit_classification_tree
+```
+
+
+
+
+
+
+Bagging trees, or bootstrap aggregating, combines predictions from multiple algorithms together to create a more accurate model in a majority vote fashion. 
+
+We will use the random forest package to do bagging. We can do this because we explicitly state that we want to use all of the available variables. 
+```{r}
+set.seed(30490)
+bag_classification <- randomForest(Subject_Died ~ Temperature+ Pulse + Blood_Pressure_Diastolic , data=train_classification, 
+                                   mtry = 3, importance = TRUE, oob.times = 15, confusion = T)
+```
+
+```{r}
+bag_classification
+```
+
+
+
+
+
+Random forest is similar to bagging, but the number of features available is less than the total number of features, often 1/3n or sqrt(n). This allows weaker learners more voice. This also helps de correlate the trees. 
+
+```{r}
+set.seed(30490)
+#do not specify mtry. The default for classification is sqrt(p) where p is the number of variables
+RF_classification <- randomForest(Subject_Died ~ Temperature + Pulse + Blood_Pressure_Systolic , data=train_classification,  importance = TRUE, oob.times = 15, confusion = TRUE)
+
+```
+
+```{r}
+RF_classification
+```
+
+Visualize OOB error rate
+```{r}
+plot(RF_classification$err.rate[,1], type = "l", ylab = "Error rate", xlab = "Number of trees")
+```
+
+Visualize importance of features
+```{r}
+importance(RF_classification)
+```
+
+Predict using test set
+```{r}
+test_RF_classification <- predict (RF_classification , newdata =test_classification)
+
+confusionMatrix(test_RF_classification, reference = test_classification$Class)
+```
+
+
+\newpage
+
+#Boosting 
+
+Boosting is a method that slowly adds trees to the existing model.  
+
+* Boosting can overfit. Contraints to impose on the model to reduce overfitting include:
+
+  * Constraints on the trees. Such as the number of trees, and tree depth
+
+  * Constraints on the data used. Stochastic Gradient Boosting randomly samples a subset of the data to create trees. This helps reduce correlations in the trees. 
+
+  * Regularize. Weights such as leaf weights can be regularized 
+
+  * Shrinkage, or learning rate. Reduce the rate of learning by adding predictions of trees sequentially. 
+
+
+```{r}
+set.seed(30490)
+ctrl <- trainControl(method = "repeatedcv", repeats = 2, classProbs = T, savePredictions = T)
+# training the model
+model_gbm<-train(Subject_Died ~ Temperature + Pulse + Blood_Pressure_Systolic , data = train_classification , method = 'gbm',trControl = ctrl, tuneLength = 10, verbose = F)
+```
+
+
+```{r}
+roc(predictor = model_gbm$pred$malignant, response = model_gbm$pred$obs)$auc
+```
+Visualize ROC curve
+```{r}
+plot(x = roc(predictor = Subject_Died$pred$Yes, response = Subject_Died$pred$obs)$specificities, y = roc(predictor = Subject_Died$pred$Yes, response = Subject_Died$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+```
+
+Visualize importance of features 
+```{r}
+varImp(object = model_gbm)
+```
+
+```{r}
+plot(varImp(object=model_gbm),main="GBM - Variable Importance")
+```
+
+
+\newpage
+
+#Support Vector Machine
+
+SVMs are models that transform the data so that they can be linearly separated, and linearly separates them in a way that maximizes the decision boundary. 
+
+
+Supplemental information :https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-034-artificial-intelligence-fall-2010/lecture-videos/lecture-16-learning-support-vector-machines/
+
+
+Train linear SVM
+```{r}
+set.seed(30490)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = T, savePredictions = T)
+svm <- train(Subject_Death ~ Temperature + Pulse + Blood_Pressure_Systolic , data = train_classification, method = "svmLinear", tuneLength = 10, trControl = ctrl)
+```
+
+```{r}
+svm
+```
+
+```{r}
+roc(predictor = svm$pred$malignant, response = svm$pred$obs)$auc
+```
+
+Visualize ROC curve
+```{r}
+plot(x = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$specificities, y = roc(predictor = svm$pred$malignant, response = svm$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+```
+
+Predict using test set
+```{r}
+svm_test <- predict(svm, newdata = test_classification)
+confusionMatrix(svm_test, reference = test_classification$Class)
+```
+
+
+Train radial SVM
+```{r}
+set.seed(30490)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,classProbs = T, savePredictions = T)
+svm_rad <- train()
+```
+
+
+```{r}
+roc(predictor = svm$pred$malignant, response = svm$pred$obs)$auc
+```
+
+Visualize ROC curve
+```{r}
+plot(x = roc(predictor = svm$pred$Subject_Died, response = svm$pred$obs)$specificities, y = roc(predictor = svm$pred$Subject_Died, response = svm$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+```
+
+Predict using test set
+```{r}
+svm_test <- predict(svm, newdata = test_classification)
+confusionMatrix(svm_test, reference = test_classification$Subject_Died)
+```
+
+
+## Homework 
+Find a dataset of your choosing. Use two different tree based methods, and SVM with two different kernels. Compare and contrast. 

@@ -1,0 +1,163 @@
+---
+title: "Feature Selection"
+author: "Shuyang"
+date: " Fall 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(caret)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(devtools)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(randomForest)
+library(tree)
+#Mauna Loa CO2 concentrations
+```
+
+```{r}
+death <- read.csv("/Users/dengshuyang/Desktop/ML2019/FinalProject/data/DeathData.csv")
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/ML2019/FinalProject/data/alsfrs.csv")
+als_death <- alsfrs%>% inner_join(death, by = 'subject_id')
+als_death$ALSFRS_Total[is.na(als_death$ALSFRS_Total)] <- mean(als_death$ALSFRS_Total, na.rm = T) 
+
+als_death$Death_Days[is.na(als_death$Death_Days)] <- mean(als_death$Death_Days, na.rm = T) 
+```
+
+1. Split data into training and test set
+```{r}
+train_size <- floor(0.75 * nrow(als_death))
+set.seed(600)
+train_pos <- sample(seq_len(nrow(als_death)), size = train_size)
+train_regression <- als_death[train_pos,c(1,13,14,15,20,21,22)]
+test_regression <- als_death[-train_pos,c(1,13,14,15,20,21,22)]
+
+dim(train_regression)
+dim(test_regression) 
+```
+
+```{r}
+linear_reg <- train(Death_Days ~ ALSFRS_Total, data=train_regression, method = "lm")
+linear_reg
+```
+
+```{r}
+summary(linear_reg)
+```
+
+
+
+```{r}
+#help(train)
+linear_prediction <- predict(linear_reg, newdata=test_regression)
+plot_linear_prediction <- data.frame(Death_Days_pred = linear_prediction, ALSFRS_Total = test_regression$ALSFRS_Total, Death_Days = test_regression$Death_Days)
+
+# Extract coefficients from the model, plot the regression line on the predicted values, plot the original test values
+linear_reg$finalModel$coefficients
+
+ggplot(data = plot_linear_prediction)+
+  geom_point(aes(x=ALSFRS_Total, y = Death_Days_pred, col =  "Predicted")) + 
+  ggtitle("Linear Regression model on Test Set") +
+  geom_abline(aes(intercept = 367.410140, slope = 1.928014, col="Regression Line")) +
+  geom_point(aes(x = ALSFRS_Total, y = Death_Days, col = "Observed values")) +
+  geom_segment(aes(x = ALSFRS_Total, xend = ALSFRS_Total, y = Death_Days,yend = Death_Days))
+```
+
+
+```{r}
+library("QuantPsyc")
+lm_fit <- lm(Death_Days ~ ALSFRS_Total, data=train_regression)
+scaled_coef <- lm.beta(lm_fit)
+scaled_coef
+```
+
+
+### Decision Trees and the importance() function
+
+```{r}
+library(mlbench)
+train_size <- floor(0.75 * nrow(als_death))
+set.seed(544)
+train_pos <- sample(seq_len(nrow(als_death)), size = train_size)
+train_classifier <- als_death[train_pos,]
+test_classifier <- als_death[-train_pos,]
+
+
+dim(train_classifier)
+dim(test_classifier)
+```
+
+```{r}
+train_classifier_log <- train_classifier[c(which(train_classifier$Subject_Died == "Yes"), which(train_classifier$Subject_Died == "No")),]
+test_classifier_log <- test_classifier[c(which(test_classifier$Subject_Died == "Yes"), which(test_classifier$Subject_Died == "No")),]
+
+train_classifier_log$Subject_Died <- factor(train_classifier_log$Subject_Died)
+test_classifier_log$Subject_Died <- factor(test_classifier_log$Subject_Died)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 15,classProbs = T, savePredictions = T)
+
+
+logistic_regression <- train(Subject_Died ~ ALSFRS_Total, data = train_classifier_log, method = "glm", family= "binomial", trControl = ctrl)
+```
+```{r}
+logistic_regression
+```
+The first measure is computed from permuting OOB data: For each tree, the prediction error on the out-of-bag portion of the data is recorded (error rate for classification, MSE for regression). Then the same is done after permuting each predictor variable. The difference between the two are then averaged over all trees, and normalized by the standard deviation of the differences. 
+
+The second measure is the total decrease in node impurities from splitting on the variable, averaged over all trees. For classification, the node impurity is measured by the Gini index. For regression, it is measured by residual sum of squares.
+
+
+### Wrapper Methods vs Filter methods:
+
+#### Wrapper methods:  Evaulate model after adding or removing features to optimize the model performance using RMSE or AUC as metrics. 
+      
+      Recursive Feature Selection: Create model, measure variable importance, remove features of low importance, re-create model and evaluate. 
+ 
+```{r}
+set.seed(100)
+als_death[is.na(als_death)] <- 0
+svmProfile <- rfe(als_death[,3:ncol(als_death)-1], als_death[,ncol(als_death)],
+                  sizes = c(2, 5, 9),
+                  rfeControl = rfeControl(functions = caretFuncs,
+                                          number = 2),
+
+                  method = "svmRadial")
+svmProfile
+svmProfile$variables
+
+```
+
+
+
+#### Filter Methods: Remove features based on metrics such as variance, and correlation with outcome
+
+From Max Khun: 
+The caret function sbf (for selection by filter) can be used to cross-validate such feature selection schemes. Univariate examples are give by anovaScores for classification and gamScores for regression. anovaScores treats the outcome as the independent variable and the predictor as the outcome. In this way, the null hypothesis is that the mean predictor values are equal across the different classes. For regression, gamScores fits a smoothing spline in the predictor to the outcome using a generalized additive model and tests to see if there is any functional relationship between the two. In each function the p-value is used as the score.
+
+
+```{r}
+set.seed(159)
+help(sbf)
+filteredNB <- sbf(als_death[,3:ncol(als_death)-1], als_death[,ncol(als_death)],
+                 sbfControl = sbfControl(functions = caretSBF,
+                                         verbose = FALSE,
+                                         method = "repeatedcv",
+                                         repeats = 1))
+
+filteredNB
+```
+
+ 
+Homework Feature Selection:
+ 
+Choose a dataset, and run a general linear model, a tree based method, and a neural network,  on the unfiltered feature set, the feature set after recursive feature elimination, and the feature set after filtering based on the characteristics of the data. Which models do you think would be most impacted by the feature selection? Did your models do better after feature selection? 
+ 

@@ -1,0 +1,49 @@
+---
+title: "ALS_Clustering_practice"
+author: "Shuyang"
+date: "10/27/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+
+Today, we are going over Hierarchical clustering, K-Means Clustering, PCA, ICA, and NMF. 
+
+```{r load, include=FALSE}
+library(ggplot2)
+library(ggfortify)
+library(OpenImageR)
+library(fastICA)
+library(NMF)
+library(factoextra)
+```
+
+```{r}
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+alsfrs_clust <- alsfrs[,1:16]
+dim(alsfrs_clust)
+```
+
+```{r}
+fviz_nbclust(alsfrs_clust,kmeans,method="wss")+ 
+  geom_vline(xintercept =4, linetype=2)
+```
+
+```{r}
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+```
+
+```{r}
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+```
+
+```{r}
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+```
+
+```{r}
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+```

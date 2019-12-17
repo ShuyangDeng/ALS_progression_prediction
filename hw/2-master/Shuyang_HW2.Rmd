@@ -1,0 +1,276 @@
+---
+title: "Shuyang_HW2"
+author: "Shuyang"
+date: "Fall 2018"
+output:
+  html_document:
+    df_print: paged
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+1. Run PCA, ICA, and NMF on the iris dataset. 
+
+
+2. Yes. 
+
+
+```{r load, include=FALSE}
+
+library(ggplot2)
+library(ggfortify)
+library(OpenImageR)
+library(fastICA)
+library(NMF)
+
+```
+<br>
+```{r}
+iris$Species <- as.numeric(iris$Species)
+iris_clust <- iris[c(1:5,51:55), ]
+View(iris_clust)
+hierarchical_distance <- as.matrix(dist(iris_clust, method = "euclidean"))
+View(hierarchical_distance)
+dim(iris_clust)
+```
+
+
+<br>
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+
+
+```
+```{r }
+hierarchical_distance[,1] <- apply((hierarchical_distance[,c(5,1)]),1,mean)
+hierarchical_distance[5,] <- apply((hierarchical_distance[c(5,1),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-5,-5]
+
+```
+
+<br>
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+<br>
+```{r }
+hierarchical_distance[,3] <- apply((hierarchical_distance[,c(4,3)]),1,mean)
+hierarchical_distance[4,] <- apply((hierarchical_distance[c(4,3),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-4,-4]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+```{r }
+hierarchical_distance[,4] <- apply((hierarchical_distance[,c(6,4)]),1,mean)
+hierarchical_distance[6,] <- apply((hierarchical_distance[c(6,4),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-6,-6]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+```{r }
+hierarchical_distance[,2] <- apply((hierarchical_distance[,c(3,2)]),1,mean)
+hierarchical_distance[3,] <- apply((hierarchical_distance[c(3,2),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-3,-3]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+
+```{r }
+hierarchical_distance[,4] <- apply((hierarchical_distance[,c(6,4)]),1,mean)
+hierarchical_distance[6,] <- apply((hierarchical_distance[c(6,4),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-6,-6]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+```{r }
+hierarchical_distance[,2] <- apply((hierarchical_distance[,c(1,2)]),1,mean)
+hierarchical_distance[1,] <- apply((hierarchical_distance[c(1,2),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-1,-1]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+```{r }
+hierarchical_distance[,2] <- apply((hierarchical_distance[,c(3,2)]),1,mean)
+hierarchical_distance[3,] <- apply((hierarchical_distance[c(3,2),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-3,-3]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+```{r }
+hierarchical_distance[,2] <- apply((hierarchical_distance[,c(3,2)]),1,mean)
+hierarchical_distance[3,] <- apply((hierarchical_distance[c(3,2),]),2,mean)
+hierarchical_distance <- hierarchical_distance[-3,-3]
+```
+
+```{r }
+diag(hierarchical_distance) <- NA
+arrayInd(which.min(hierarchical_distance), dim(hierarchical_distance))
+```
+
+```{r }
+hierarchical_distance <- dist(iris_clust, method = "euclidean")
+plot(hclust(hierarchical_distance, method="average"))
+```
+<br>
+```{r K-means_step1}
+kmeans_distance <- as.matrix(dist(iris_clust, method = "euclidean"))
+diag(kmeans_distance) <- NA
+arrayInd(which.max(kmeans_distance), dim(kmeans_distance))
+```
+
+```{r}
+cluster_1 <- iris_clust[8,]
+cluster_1_centroid <- cluster_1
+cluster_2 <- iris_clust[3,]
+cluster_2_centroid <- cluster_2
+```
+
+```{r}
+dist(rbind(cluster_1_centroid,iris_clust[1,]), method = "euclidean") 
+
+dist(rbind(cluster_2_centroid,iris_clust[1,]), method = "euclidean")
+```
+
+
+```{r}
+for(i in 1:nrow(iris_clust)){
+  if(i == 6 | i == 9){
+    next
+  }
+  if(dist(rbind(cluster_2_centroid,iris_clust[i,]), method = "euclidean") < dist(rbind(cluster_1_centroid,iris_clust[i,]), method = "euclidean") ) {
+    cluster_2 <- rbind(cluster_2, iris_clust[i,])
+    cluster_2_centroid <- apply(cluster_2,2,function(x) mean(as.numeric(x)))
+  }else{
+    cluster_1 <- rbind(cluster_1, iris_clust[i,])
+    cluster_1_centroid <- apply(cluster_1,2,function(x) mean(as.numeric(x)))
+  }
+}
+```
+
+```{r}
+dist(dist(rbind(cluster_1_centroid,iris_clust[1,])))
+dist(dist(rbind(cluster_2_centroid,iris_clust[1,])))
+```
+<br>
+```{r}
+kmean_out_iris <- kmeans(iris_clust,2)
+```
+
+<br>
+PCA:
+In the input for the PCA, out inputs were a 5 x 5 matrix,
+  and a rank of 1. Principal component 1 and 2 explain 99.81 percent of the variance. Principal component 1,2, and 3 together explain 100% of the variance in the data. 
+```{r}
+iris_clust_pca <- data.matrix(iris_clust[1:5,])
+
+Center_auto <- apply(iris_clust_pca, 1, function(x) x - mean(x))
+```
+
+```{r}
+Covariance_auto <- cov(Center_auto)
+```
+
+```{r}
+Eigen_value_auto <- eigen(Covariance_auto)$value
+Eigen_vector_auto <- eigen(Covariance_auto)$vector
+```
+
+```{r}
+PC <- as.data.frame(data.matrix(Center_auto) %*% Eigen_vector_auto)
+
+ggplot(PC, aes(PC[,1], PC[,2])) + geom_point(aes(PC[,1], PC[,2]))
+
+```
+
+```{r}
+round(cumsum(Eigen_value_auto)/sum(Eigen_value_auto) * 100, digits = 2)
+```
+
+```{r}
+autoplot(prcomp(t(iris_clust_pca)))
+```
+
+ICA:
+in the input for the ICA, out inputs were S the matrix that I create. Mix S and A. The output was the independent components as a heatmap.
+```{r}
+S <- cbind(cos((1:500)/10), ((500:1)/1000))
+
+par(mfcol = c(1, 2))
+plot(S[,1], type="l")
+plot(S[,2], type="l")
+```
+
+```{r}
+A <- matrix(c(0.5, 0.7, 0.423, 0.857), 2, 2)
+```
+
+```{r}
+X <- S %*% A
+par(mfcol = c(1, 2))
+plot(X[,1], type="l")
+plot(X[,2], type="l")
+
+```
+
+```{r, include=FALSE}
+b <- fastICA(X, 2, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+             method = "R", row.norm = FALSE, maxit = 200,
+             tol = 0.0001, verbose = TRUE)
+```
+
+```{r}
+par(mfcol = c(1, 2))
+plot(1:500, b$S[,1], type = "l", xlab = "S'1", ylab = "")
+plot(1:500, b$S[,2], type = "l", xlab = "S'2", ylab = "")
+```
+```{r, include=FALSE}
+a <- fastICA(iris_clust, 7, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+             method = "R", row.norm = FALSE, maxit = 200,
+             tol = 0.0001, verbose = TRUE)
+```
+
+```{r}
+heatmap(a$S)
+```
+NMF:
+In the input for the NMF, out inputs were a 10 x 4 matrix, and a rank of 2. The output was a matrix W with dimensions 10x2, and a matrix H with dimensions 2x4. 
+
+```{r}
+iris_clust <- iris[,1:4]
+
+nmf_out <- nmf(iris_clust, 2, set.seed(304547), nrun= 100)
+W <- nmf_out@fit@W
+H <- nmf_out@fit@H
+
+basismap(nmf_out)
+
+coefmap(nmf_out)
+```
+
+
+
+

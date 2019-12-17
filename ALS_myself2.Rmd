@@ -1,0 +1,330 @@
+---
+title: "ALS Dream Challenge part2"
+author: "Shuyang"
+date: "11/19/2019"
+output: 
+  html_document: default
+  pdf_document: default
+---
+```{r setDefault, include=FALSE}
+# This code chunk defines the default chunks setting
+knitr::opts_chunk$set(eval=TRUE, comment="$$$", fig.width=6)
+```
+<br>
+# Predict 3-12 month ALSFRS slope using clinical trial data collected through the PRO-ACT database
+## 
+1. Data preprocessing
+2. Feature selection
+3. Make prediction and evaluation, use random forest, regression, Bayesian trees,Support vector,gbm
+<br>
+# 2. Feature Selection
+resource:
+file:///Users/dengshuyang/Desktop/ML2019/FinalProject/ALS_Dream_Challenge_Model.html
+file:///Users/dengshuyang/Downloads/f1000research-109048.pdf
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5099532/pdf/ACN3-3-866.pdf
+```{r, results='hold'}
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(factoextra)
+library(pbmcapply)
+library(data.table)
+library(pbapply)
+library(ggplot2)
+library(devtools)
+library(ggfortify)
+library(randomForest)
+library(gridExtra)
+```
+
+```{r, results='hold'}
+setwd('/Users/dengshuyang/Desktop/ML2019/')
+ALS_Slope_FINAL3 <- read.csv('ALS_FINAL3.csv')
+ALS_Slope_FINAL3 <- ALS_Slope_FINAL3[, -1]
+
+ALS_Slope_FINAL12 <- read.csv('ALS_FINAL12.csv')
+ALS_Slope_FINAL12 <- ALS_Slope_FINAL12[, -1]
+
+ALS_Ben <- read.csv('FinalProject/ALS_FINAL.csv')
+ALS_Ben <- ALS_Ben[, -1]
+head(ALS_Slope_FINAL3)
+head(ALS_Slope_FINAL12)
+head(ALS_Ben)
+```
+
+```{r, results='hold'}
+getwd()
+dim(ALS_Slope_FINAL3)
+dim(ALS_Slope_FINAL12)
+dim(ALS_Ben)
+setdiff(colnames(ALS_Slope_FINAL3), colnames(ALS_Ben))
+setdiff( colnames(ALS_Ben), colnames(ALS_Slope_FINAL3))
+```
+## traing and validation data distribution
+```{r, results='hold'}
+training_set_size <- floor(0.75*nrow(ALS_Slope_FINAL3))
+set.seed(543)
+train_samples <- sample(seq_len(nrow(ALS_Slope_FINAL3)), size=training_set_size)
+training_set <- ALS_Slope_FINAL3[train_samples, ]
+test_set <- ALS_Slope_FINAL3[-train_samples, ]
+
+dim(training_set)
+dim(test_set)
+```
+```{r, results='hold'}
+training_set_size <- floor(0.75*nrow(ALS_Ben))
+set.seed(1000)
+train_samples <- sample(seq_len(nrow(ALS_Ben)), size=training_set_size)
+training_set <- ALS_Ben[train_samples, ]
+test_set <- ALS_Ben[-train_samples, ]
+
+dim(training_set)
+dim(test_set)
+```
+# clustering
+```{r, results='hold'}
+training_set_pca <- apply(training_set[, -1], 2, function(x) x - mean(x))
+autoplot(prcomp(training_set_pca))
+```
+
+```{r, results='hold'}
+# The optimal number of clusters is 2
+fviz_nbclust(training_set, clara, method='silhouette')
+```
+```{r, results='hold'}
+training_set_pca.kmean <- as.data.frame(training_set_pca[,-c(1,14)])
+k.means.fit <- kmeans(training_set_pca.kmean, 2)
+clusters <- k.means.fit$cluster
+k.means.fit$size
+```
+```{r}
+training_set_clusters <- training_set %>% mutate(Cluster_Number=clusters)
+training_set_cluster_1 <- training_set_clusters %>% filter(Cluster_Number==1) %>% dplyr::select(-Cluster_Number, -subject_id)
+training_set_cluster_1 <- as.data.frame(training_set_cluster_1)
+
+training_set_cluster_2 <- training_set_clusters %>% filter(Cluster_Number==2) %>% dplyr::select(-Cluster_Number, -subject_id)
+training_set_cluster_2 <- as.data.frame(training_set_cluster_2)
+
+```
+
+```{r}
+training_set_clusters$Cluster_Number <- as.factor(training_set_clusters$Cluster_Number)
+autoplot(cluster, data=training_set_clusters, colour="Cluster_Number") + labs(title="CLARA Clustering", x="PC1", y="PC2", color="Cluster_Number")
+```
+
+```{r, results='hold'}
+# move col of ALSFRS_Slope first in the df
+col_idx <- grep('ALSFRS_Slope', names(training_set_cluster_1))
+training_set_cluster_1 <- training_set_cluster_1[, c(col_idx, (1:ncol(training_set_cluster_1)))] %>% dplyr::select(-ALSFRS_Slope.1)
+
+col_idx2 <- grep('ALSFRS_Slope', names(training_set_cluster_2))
+training_set_cluster_2 <- training_set_cluster_2[, c(col_idx2, (1:ncol(training_set_cluster_2)))] %>% dplyr::select(-ALSFRS_Slope.1)
+```
+
+```{r, results='hold'}
+dim(training_set_cluster_1)
+dim(training_set_cluster_2)
+```
+## Feature Selection: Recursive Feature Elimination
+```{r, results='hold'}
+set.seed(134)
+ctrl <- rfeControl(functions=rfFuncs,
+                   method='cv',
+                   number=5,
+                   verbose=FALSE)
+```
+
+```{r, results='hold'}
+rfe_als1 <- rfe(training_set_cluster_1[,2:ncol(training_set_cluster_1)],
+               training_set_cluster_1[,1],
+               sizes=c(2:ncol(training_set_cluster_1)),
+               rfeControl=ctrl)
+
+rfe_als1
+#Chloride, ALSFRS_Total, FVC_Subject_Liters_Trial_1, Sodium, Creatinine, Onset_Delta
+```
+```{r, results='hold'}
+rfe_als2 <- rfe(training_set_cluster_2[,2:ncol(training_set_cluster_2)],
+               training_set_cluster_2[,1],
+               sizes=c(2:ncol(training_set_cluster_2)),
+               rfeControl=ctrl)
+```
+
+```{r}
+rfe_als2
+#Pulse, Hemoglobin
+plot(rfe_als2, type = c("g", "o"))
+
+```
+
+```{r, results='hold'}
+plot(rfe_als1, type = c("g", "o"))
+
+varImp(rfe_als1)
+
+predictors(rfe_als1)
+```
+
+
+<br>
+<br>
+----------------------------------
+# 3. Make prediction and evaluation, use random forest, regression, Bayesian trees,Support vector,gbm
+source:
+https://www.r-bloggers.com/how-to-implement-random-forests-in-r/
+```{r}
+#cluster1
+training_set_cluster_1_file <- training_set_clusters %>% 
+  filter(Cluster_Number==1) %>% 
+  dplyr::select(subject_id,ALSFRS_Slope, Chloride, ALSFRS_Total, FVC_Subject_Liters_Trial_1, Sodium, Creatinine, Onset_Delta, AST, Hematocrit, Q7_Turning_in_Bed)
+                                                                          
+#write.csv(training_set_cluster_1_file, file = "cluster_1.csv")
+
+#cluster 2
+training_set_cluster_2_file <- training_set_clusters %>% filter(Cluster_Number==2) %>% dplyr::select(subject_id, ALSFRS_Slope, Pulse, Hemoglobin)
+
+#write.csv(training_set_cluster_2_file, file = "cluster_2.csv")
+```
+
+```{r}
+dim(training_set_cluster_1_file)
+dim(training_set_cluster_2_file) 
+```
+### cluster_1 random forest
+```{r}
+training_set_size <- floor(0.75 * nrow(training_set_cluster_1_file))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(training_set_cluster_1_file)), size = training_set_size)
+training_set_clus1 <- training_set_cluster_1_file[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set_clus1 <- training_set_cluster_1_file[-train_samples, ]
+
+dim(training_set_clus1)
+dim(test_set_clus1)
+```
+We can tune the random forest model by changing the number of trees (ntree) and the number of variables randomly sampled at each stage (mtry). According to Random Forest package description:
+
+Ntree: Number of trees to grow. This should not be set to too small a number, to ensure that every input row gets predicted at least a few times.
+
+Mtry: Number of variables randomly sampled as candidates at each split. Note that the default values are different for classification (sqrt(p) where p is number of variables in x) and regression (p/3)
+```{r}
+set.seed(121)
+#train the training set via random forests 
+#fine tune the model by changing ‘mtry’
+RF_slope_1 <- randomForest(ALSFRS_Slope ~. -subject_id, data=training_set_clus1, oob.times = 15,ntree=500, confusion = T)
+RF_slope_1
+```
+
+```{r}
+varImpPlot(RF_slope_1)
+plot(RF_slope_1, log="y")
+```
+
+```{r}
+#mse
+which.min(RF_slope_1$mse)
+#rmse
+sqrt(RF_slope_1$mse[which.min(RF_slope_1$mse)])
+```
+
+```{r}
+#First predict on test data
+pred_RF_slope_1 <- predict(RF_slope_1 , newdata =test_set_clus1)
+summary(pred_RF_slope_1)
+```
+
+```{r}
+#RMSE for test data
+sqrt(sum(pred_RF_slope_1 - test_set_clus1$ALSFRS_Slope)^2)
+MAE.forest <- mean(abs(pred_RF_slope_1-test_set_clus1$ALSFRS_Slope))
+MAE.forest
+```
+https://www.r-bloggers.com/random-forests-in-r/
+```{r}
+oob.err=double(5)
+test.err=double(5)
+
+for(mtry in 1:9) 
+{
+  rf=randomForest(ALSFRS_Slope ~ .-subject_id , data = training_set_clus1,mtry=mtry,ntree=500) 
+  oob.err[mtry] = rf$mse[500] #Error of all Trees fitted
+  
+  pred<-predict(rf,test_set_clus1) #Predictions on Test Set for each Tree
+  test.err[mtry]= with(test_set_clus1, mean( (ALSFRS_Slope - pred)^2)) #Mean Squared Test Error
+  
+  cat(mtry," ") #printing the output to the console
+  
+}
+```
+
+```{r}
+matplot(1:mtry , cbind(oob.err,test.err), pch=19 , col=c("red","blue"),type="b",ylab="Mean Squared Error",xlab="Number of Predictors Considered at each Split")
+legend("topright",legend=c("Out of Bag Error","Test Error"),pch=19, col=c("red","blue"))
+```
+resource:
+https://www.r-bloggers.com/part-4a-modelling-predicting-the-amount-of-rain/
+```{r}
+all.predictions <- data.frame(actual=test_set_clus1$ALSFRS_Slope, random.forest = pred_RF_slope_1)
+#all.predictions <- gather(all.predictions, key=model, value=predictions)
+```
+
+```{r}
+bp <- ggplot(data = all.predictions,aes(y = actual, x = random.forest)) + 
+  geom_point(col = 'dodgerblue2') + 
+  geom_smooth(col = 'orangered2')+
+  ggtitle("Predicted vs. Actual, by model")
+bp
+```
+
+### gbm
+```{r}
+library(gbm)          
+set.seed(111)
+gbm_slope <- gbm(formula = ALSFRS_Slope ~ . -subject_id,
+                 distribution='gaussian',
+                 data=training_set_clus1,
+                 cv.folds=5,
+                 verbose=FALSE)
+gbm_slope
+```
+```{r}
+sqrt(min(gbm_slope$cv.error))
+```
+```{r}
+#pred_gbm <- predict(gbm_slope, test_set_clus1)
+caret::RMSE(pred_gbm, test_set_clus1$ALSFRS_Slope)
+```
+```{r}
+all.predictions_gbm <- data.frame(actual=test_set_clus1$ALSFRS_Slope, gbm = pred_gbm)
+#all.predictions <- gather(all.predictions, key=model, value=predictions)
+```
+
+```{r}
+bp_gbm <- ggplot(data = all.predictions_gbm,aes(x = actual, y = gbm)) + 
+  geom_point(col = 'dodgerblue2') + 
+  geom_smooth(col = 'orangered2')+
+  ggtitle("Predicted vs. Actual, by model")
+bp_gbm
+```
+
+
+resource:
+https://towardsdatascience.com/random-forest-in-python-24d0893d51c0
+https://towardsdatascience.com/random-forest-in-r-f66adf80ec9
+https://stackoverflow.com/questions/39208718/predicted-vs-actual-plot
+
+
+
+
+
+
+
+
+
+
+
+
+
+

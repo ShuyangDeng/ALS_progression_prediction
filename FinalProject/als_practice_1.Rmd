@@ -1,0 +1,339 @@
+---
+title: "Als_classification"
+author: "Shuyang"
+date: "10/22/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+```{r, include=FALSE}
+library(caret)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(devtools)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(tidyverse)
+library(Hmisc)
+```
+
+```{r eval=TRUE}
+# combine data of demo and death, then we get demo_Death. The more data combined, the more data loss. So I combine 2 of the each time.
+
+death <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/DeathData.csv")
+demo <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/demographics.csv")
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+demo_Death <- demo %>% inner_join(death, by = 'subject_id' ) 
+demo_Death$Subject_Died <- factor(demo_Death$Subject_Died, labels=c("N", "Y"))
+demo_Death$Sex <- factor(demo_Death$Sex,labels=c("F","M"))
+
+als_death <- alsfrs%>% inner_join(death, by = 'subject_id')
+als_demo <- alsfrs%>% inner_join(demo,by='subject_id')
+als_demo$Sex <- factor(als_demo$Sex,labels=c("F","M"))
+#als_demo$Sex <- ifelse(als_demo$Sex == 'F',1,0) # 1 represents female
+
+
+```
+
+```{r eval=TRUE}
+# male's alsfrs total are greater than female's total. But survival time are almost same.
+ggplot(data = als_demo) + 
+  geom_boxplot(mapping= aes(Sex, ALSFRS_Total))
+ggplot(data = als_demo) +
+  geom_bar(mapping=aes(Sex))
+
+
+ggplot(data=demo_Death)+
+  geom_boxplot(mapping=aes(Sex, Death_Days))+
+  coord_cartesian(ylim=c(0,800))
+```
+
+```{r eval=TRUE}
+# use mean to replace missing values 
+
+als_death$ALSFRS_Total[is.na(als_death$ALSFRS_Total)] <- mean(als_death$ALSFRS_Total, na.rm = T) 
+
+als_death$Death_Days[is.na(als_death$Death_Days)] <- mean(als_death$Death_Days, na.rm = T) 
+
+als_demo$ALSFRS_Total[is.na(als_demo$ALSFRS_Total)] <- mean(als_demo$ALSFRS_Total, na.rm = T) 
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# 1. Split data into training and test set
+
+train_size <- floor(0.75 * nrow(als_death))
+set.seed(600)
+train_pos <- sample(seq_len(nrow(als_death)), size = train_size)
+train_regression <- als_death[train_pos,c(1,13,14,15,20,21,22)]
+test_regression <- als_death[-train_pos,c(1,13,14,15,20,21,22)]
+
+dim(train_regression)
+dim(test_regression) 
+```
+
+```{r}
+#  Predict the response of the survival time based on Age.
+# ggplot(demo_Death, aes(Age, Death_Days)) + geom_point() + geom_smooth()
+# predict the response of the survival time based on alsfrs_total
+pic1 <- ggplot(data = als_death,mapping= aes(ALSFRS_Total, Death_Days)) + 
+  geom_point()+  
+  geom_smooth()
+pic1 + scale_y_continuous(limits = c(0,1200))   
+
+```
+
+```{r}
+# 2. Create and fit a linear model using the training set
+
+linear_reg <- train(Death_Days ~ ALSFRS_Total, data=train_regression, method = "lm")
+linear_reg
+```
+
+```{r}
+summary(linear_reg)
+
+```
+
+```{r}
+# Visualize the predicted values. Look at for homoscedasticity
+# predict survival based on alsfrs_total
+linear_prediction <- predict(linear_reg, newdata=test_regression)
+plot_linear_prediction <- data.frame(Death_Days_pred = linear_prediction, ALSFRS_Total = test_regression$ALSFRS_Total, Death_Days = test_regression$Death_Days)
+
+# Extract coefficients from the model, plot the regression line on the predicted values, plot the original test values
+linear_reg$finalModel$coefficients
+
+ggplot(data = plot_linear_prediction)+
+  geom_point(aes(x=ALSFRS_Total, y = Death_Days_pred, col =  "Predicted")) + 
+  ggtitle("Linear Regression model on Test Set") +
+  geom_abline(aes(intercept = 367.410140, slope = 1.928014, col="Regression Line")) +
+  geom_point(aes(x = ALSFRS_Total, y = Death_Days, col = "Observed values")) +
+  geom_segment(aes(x = ALSFRS_Total, xend = ALSFRS_Total, y = Death_Days,yend = Death_Days))
+
+```
+
+```{r}
+# Examine the residuals by comparing predicted Death days to the observed death days
+
+plot_linear_prediction_death_days <- data.frame(Death_Days_pred = linear_prediction, Observed_death_days = test_regression$Death_Days)
+
+ggplot(data = plot_linear_prediction_death_days) +
+  geom_point(aes(x=Observed_death_days, y = Death_Days_pred)) +
+  ggtitle("True Survival Time Value vs Predicted Survival Time Linear Regression")
+
+
+#look at the median residual value. Close to zero is best
+summary(linear_reg)
+```
+
+```{r}
+# Residuals should be normally distributed. Plot the residuals against the fitted values. 
+
+residuals_linear <- residuals(linear_reg)
+resid_predict <- data.frame(residual = residuals_linear, ALSFRS_Total = train_regression$ALSFRS_Total)
+ggplot(data=resid_predict)+
+  geom_point( aes(x=ALSFRS_Total, y = residual))
+
+```
+
+```{r}
+# Independent variables and residuals should not be correlated
+
+cor.test(train_regression$ALSFRS_Total, resid(linear_reg))
+
+## bad prediction
+```
+
+
+1. Split into training and test set 
+```{r}
+
+#split into training and test set 
+train_size <- floor(0.75 * nrow(als_death))
+set.seed(544)
+train_pos <- sample(seq_len(nrow(als_death)), size = train_size)
+train_classifier <- als_death[train_pos,]
+test_classifier <- als_death[-train_pos,]
+
+
+dim(train_classifier)
+dim(test_classifier)
+```
+
+```{r}
+#only look at two classes 
+train_classifier_log <- train_classifier[c(which(train_classifier$Subject_Died == "Yes"), which(train_classifier$Subject_Died == "No")),]
+test_classifier_log <- test_classifier[c(which(test_classifier$Subject_Died == "Yes"), which(test_classifier$Subject_Died == "No")),]
+
+train_classifier_log$Subject_Died <- factor(train_classifier_log$Subject_Died)
+test_classifier_log$Subject_Died <- factor(test_classifier_log$Subject_Died)
+
+ctrl <- trainControl(method = "repeatedcv", repeats = 15,classProbs = T, savePredictions = T)
+
+#create model. logistic regression is a bionomial general linear model. 
+#predict species based on sepal length
+logistic_regression <- train(Subject_Died ~ ALSFRS_Total, data = train_classifier_log, method = "glm", family= "binomial", trControl = ctrl)
+```
+
+```{r}
+logistic_regression
+```
+
+```{r}
+summary(logistic_regression)
+```
+3. Visualize ROC curve 
+```{r}
+plot(x = roc(predictor = logistic_regression$pred$Yes, response = logistic_regression$pred$obs)$specificities, y = roc(predictor = logistic_regression$pred$Yes, response = logistic_regression$pred$obs)$sensitivities, col= "blue", xlim = c(1, 0), type ="l", ylab = "Sensitivity", xlab = "Specificity")
+legend("bottomright", legend = paste("Yes v No --", roc(predictor = logistic_regression$pred$Yes, response = logistic_regression$pred$obs)$auc
+, sep = ""), col = c("blue"), fill = c("blue"))
+```
+
+```{r}
+#predict survival using alsfrs_total
+logistic_regression_predict_class <- predict(logistic_regression, newdata = test_classifier_log)
+
+#confusion matrix
+confusionMatrix(logistic_regression_predict_class, reference = test_classifier_log$Subject_Died)
+```
+
+```{r}
+logistic_regression_predict <- predict(logistic_regression, newdata = test_classifier_log, type = "prob")
+
+cor.test(logistic_regression_predict[,1], test_classifier_log$ALSFRS_Total)
+cor.test(logistic_regression_predict[,2], test_classifier_log$ALSFRS_Total)
+```
+
+```{r}
+logistic_predict_prob <- predict(logistic_regression, newdata = test_classifier_log, type="prob")
+
+logistic_pred_prob_plot <- data.frame(Death_Days_pred = logistic_predict_prob, ALSFRS_Total  = test_classifier_log$ALSFRS_Total) 
+
+test_classifier_log$Subject_Died <- as.numeric(test_classifier_log$Subject_Died) -1
+
+ggplot(data = test_classifier_log) +
+  geom_point(aes(x=ALSFRS_Total, y = Subject_Died)) + 
+  geom_line(data = logistic_pred_prob_plot, aes(x = ALSFRS_Total, y = Death_Days_pred.Yes, col =  "Yes"))+
+  geom_line(data = logistic_pred_prob_plot, aes(x = ALSFRS_Total, y = Death_Days_pred.No, col = "No"))+
+  ggtitle("Probabilities for classifying Subject_Died")
+
+```
+
+```{r}
+alstotal <- ggplot(data = als_death, aes(x = ALSFRS_Total, fill = Subject_Died)) + geom_histogram(position="identity", alpha=0.5, bins= 25)
+
+grid.arrange(alstotal)
+```
+
+```{r}
+LDA <- lda(Subject_Died~ ALSFRS_Total, data= train_classifier, cv= T)
+```
+
+
+```{r}
+LDA
+```
+
+```{r}
+#predict the survival of the test data
+LDA_predict <- predict(LDA, newdata=test_classifier)
+confusionMatrix(LDA_predict$class, reference = test_classifier$Subject_Died)
+```
+## Naive Bayes Classifier
+```{r}
+ctrl2 <- trainControl(method='repeatedcv', repeats = 5, classProbs =T, savePredictions =T)
+naive_bayes <- train(Subject_Died ~ ALSFRS_Total, data=train_classifier, trControl=ctrl2)
+```
+
+```{r}
+naive_bayes
+```
+## rpart
+```{r}
+setwd("/Users/dengshuyang/Desktop/machinelearning/FinalProject")
+library(rpart)
+all_data_final <- read.csv("all_data_final.csv")
+overFit1 <- rpart(ALSFRS_Total3_12 ~.,data=all_data_final[,-1])
+```
+
+```{r}
+str(all_data_final)
+```
+
+
+```{r}
+summary(overFit1)
+```
+
+```{r}
+summary(residuals(overFit1))
+```
+
+```{r}
+plot(predict(overFit1),residuals(overFit1))
+```
+
+```{r}
+ALSFRS_Total3_12_new=predict(overFit1)
+
+```
+```{r}
+R2<-function(y_test, y_true){
+  
+  return (1 - (sum((y_test - y_true)^2)/sum((y_true - mean(y_true))^2)) )   
+  
+}
+
+```
+
+```{r}
+R2(ALSFRS_Total3_12_new,all_data_final$ALSFRS_Total3_12)
+
+```
+
+
+
+```{r}
+library(rpart.plot)
+rpart.plot(overFit1, cex=0.8, under=TRUE, branch=1)
+```
+
+```{r}
+overFit1.pru <- prune(overFit1,cp=overFit1$cptable[which.min(overFit1$cptable[,"xerror"]),"CP"])
+overFit1.pru$cp
+```
+
+```{r}
+rpart.plot(overFit1.pru, cex=0.8, under = TRUE, faclen = 0, branch=1)
+```
+
+```{r}
+# rpart.pred<-predict(rpart.mod.pru,test)
+```
+
+```{r}
+# pre<-ifelse(rpart.pred[,2]>0.5,1,0)
+```
+
+```{r}
+library(rpart.plot)
+rpart.plot(overFit1, cex=0.8, under=TRUE)
+```

@@ -1,0 +1,715 @@
+---
+title: "Practice_unsupervised"
+author: "Shuyang"
+date: "10/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+# Lab Section
+Download auto data from the github page https://github.com/ayeaton/BMSC-GA-4439-Fall2018/blob/master/Auto.data.txt or the *Statistical Learning* book website here: http://www-bcf.usc.edu/~gareth/ISL/data.html
+
+Today, we are going over Hierarchical clustering, K-Means Clustering, PCA, ICA, and NMF. 
+
+```{r load, include=FALSE}
+
+library(ggplot2)
+library(ggfortify)
+library(OpenImageR)
+library(fastICA)
+library(NMF)
+
+```
+
+```{r}
+Auto_data <- read.table('Auto.data.txt', header=T, stringsAsFactors=F)
+Auto_data <- Auto_data[-which(Auto_data$horsepower == '?'),]
+Auto_data$horsepower <- as.numeric(Auto_data$horsepower)
+Auto_data_names <- Auto_data$name
+Auto_data_clust <- Auto_data[, 1:8]
+dim(Auto_data_clust)
+```
+
+```{r}
+Auto_data_clust <- Auto_data_clust[1:25,]
+rownames(Auto_data_clust) <- Auto_data_names[1:25]
+```
+
+
+## Hierarchical agglomerative clustering
+
+Step 1. Assign each item to it's own cluster. We start with 25 clusters, one for each car. 
+
+Step 2. Calculate a similarity matrix between each cluster.
+
+Step 3. Find the pair of clusters closest in similarity. 
+
+Step 4. Merge these clusters/recalculate similarity between clusters. Options are: single linkage (nearest neighbor), complete linkage (furthest neighbor), average linkage (mean distance between all pairs of data from the two different clusters), centroid linkage (distance between the means of all points in the clusters). Now we have 24 clusters.
+
+Step 5. Repeat Step 3 and 4 until there is only one cluster.
+
+### In practice
+
+Step 1. Each car is a cluster. 
+
+Step 2. Create a distance matrix from Auto_data_clust.
+
+```{r}
+help('dist')
+hierarchical_dist <- as.matrix(dist(Auto_data_clust, method='euclidean'))
+#View(hierarchical_dist)
+```
+
+Step 3. Find the two cars that are the most similar to each other and print the names of those two cars
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+Auto_data_names[23]
+Auto_data_names[15]
+
+```
+Step 4. Merge the two clusters together using average linkage. 
+
+```{r }
+hierarchical_dist[,15] <- apply((hierarchical_dist[,c(23,15)]), 1, mean)
+hierarchical_dist[15,] <- apply((hierarchical_dist[c(23,15),]),2,mean)
+```
+
+```{r}
+hierarchical_dist <- hierarchical_dist[-23,-23]
+```
+Step 5. To complete the algorithm, go back to step 3 and iterate through all of the previous steps until there are no more rows left
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r }
+Auto_data_names[4]
+Auto_data_names[3]
+```
+```{r }
+hierarchical_dist[,3] <- apply((hierarchical_dist[, c(4,3)]), 1, mean)
+hierarchical_dist[3,] <- apply((hierarchical_dist[c(4,3),]), 2, mean)
+```
+
+```{r }
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,3] <- apply((hierarchical_dist[, c(4,3)]), 1, mean)
+hierarchical_dist[3,] <- apply((hierarchical_dist[c(4,3),]), 2, mean)
+
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r }
+hierarchical_dist[,4] <- apply((hierarchical_dist[, c(6,4)]), 1, mean)
+hierarchical_dist[4,] <- apply((hierarchical_dist[c(6,4),]), 2, mean)
+
+hierarchical_dist <- hierarchical_dist[-6, -6]
+
+```
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+
+```
+
+```{r }
+hierarchical_dist[,4] <- apply((hierarchical_dist[, c(5,4)]), 1, mean)
+hierarchical_dist[4,] <- apply((hierarchical_dist[c(5,4),]), 2, mean)
+
+hierarchical_dist <- hierarchical_dist[-5, -5]
+```
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r }
+hierarchical_dist[,11] <- apply((hierarchical_dist[, c(18,11)]), 1, mean)
+hierarchical_dist[11,] <- apply((hierarchical_dist[c(18,11),]), 2, mean)
+
+hierarchical_dist <- hierarchical_dist[-18, -18]
+```
+
+```{r }
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,12] <- apply((hierarchical_dist[, c(13,12)]), 1, mean)
+hierarchical_dist[12,] <- apply((hierarchical_dist[c(13,12),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-13, -13]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,13] <- apply((hierarchical_dist[, c(18,13)]), 1, mean)
+hierarchical_dist[13,] <- apply((hierarchical_dist[c(18,13),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-18, -18]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,7] <- apply((hierarchical_dist[, c(8,7)]), 1, mean)
+hierarchical_dist[7,] <- apply((hierarchical_dist[c(8,7),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-8, -8]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(3,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(3,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-3, -3]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,2] <- apply((hierarchical_dist[, c(7,2)]), 1, mean)
+hierarchical_dist[2,] <- apply((hierarchical_dist[c(7,2),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-7, -7]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,3] <- apply((hierarchical_dist[, c(4,3)]), 1, mean)
+hierarchical_dist[3,] <- apply((hierarchical_dist[c(4,3),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,9] <- apply((hierarchical_dist[, c(12,9)]), 1, mean)
+hierarchical_dist[9,] <- apply((hierarchical_dist[c(12,9),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-12, -12]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,10] <- apply((hierarchical_dist[, c(12,10)]), 1, mean)
+hierarchical_dist[10,] <- apply((hierarchical_dist[c(12,10),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-12, -12]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,2] <- apply((hierarchical_dist[, c(4,2)]), 1, mean)
+hierarchical_dist[2,] <- apply((hierarchical_dist[c(4,2),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(4,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(4,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,6] <- apply((hierarchical_dist[, c(7,6)]), 1, mean)
+hierarchical_dist[6,] <- apply((hierarchical_dist[c(7,6),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-7, -7]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,5] <- apply((hierarchical_dist[, c(7,5)]), 1, mean)
+hierarchical_dist[5,] <- apply((hierarchical_dist[c(7,5),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-7, -7]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(2,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(2,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-2, -2]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,4] <- apply((hierarchical_dist[, c(5,4)]), 1, mean)
+hierarchical_dist[4,] <- apply((hierarchical_dist[c(5,4),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-5, -5]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(3,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(3,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-3, -3]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,3] <- apply((hierarchical_dist[, c(4,3)]), 1, mean)
+hierarchical_dist[3,] <- apply((hierarchical_dist[c(4,3),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-4, -4]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(2,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(2,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-2, -2]
+```
+
+```{r}
+diag(hierarchical_dist) <- NA
+arrayInd(which.min(hierarchical_dist), dim(hierarchical_dist))
+```
+```{r}
+hierarchical_dist[,1] <- apply((hierarchical_dist[, c(2,1)]), 1, mean)
+hierarchical_dist[1,] <- apply((hierarchical_dist[c(2,1),]), 2, mean)
+hierarchical_dist <- hierarchical_dist[-2, -2]
+```
+
+
+
+### R function 
+
+Now that we know how the algorithm works, let's use the R function hclust. Plot the Dendogram resulting from clustering the Auto_data_clust using average linkage.  
+
+```{r }
+hierarchical_dist <- dist(Auto_data_clust, method = 'euclidean')
+plot(hclust(hierarchical_dist, method = 'average'))
+```
+
+
+\newpage
+
+##K-Means Clustering
+Step 1. Choose the N number of clusters.
+
+Step 2. Find the N items that are furthest apart and set them as cluster centroids.
+
+Step 3. Assign one item in the dataset to the closest of the N cluster centroids.
+
+Step 4. Recalculate the cluster centroid. 
+
+Step 5. Repeat Steps 3 and 4 until all items are in a cluster. 
+
+Step 6. Go through each item and reassess whether the item belongs in the current cluster or in a different cluster based on distance to cluster centroids. Every time an item is reassigned to a different cluster, the centroids must be recalculated.
+
+Step 7. When every item belongs firmly to a cluster, or the iterations of Step 6 are endless, the algorithm is complete. 
+
+### In practice
+
+Step 1. We are going  to cluster the 25 cars into two groups.
+
+Step 2a. Find the two cars furthest from each other. 
+
+```{r K-means_step1}
+kmeans_dist <- as.matrix(dist(Auto_data_clust, method='euclidean'))
+diag(kmeans_dist) <- NA
+arrayInd(which.max(kmeans_dist), dim(kmeans_dist))
+```
+
+Step 2b. Create data frames to hold each cluster, cluster names, and centroids. 
+
+```{r}
+cluster_one <- Auto_data_clust[20,]
+cluster_one_names <- Auto_data_names[20]
+cluster_one_centroid <- cluster_one
+
+cluster_two <- Auto_data_clust[9,]
+cluster_two_names <- Auto_data_names[20]
+cluster_two_centroid <- cluster_two
+
+```
+
+Step 3a. Sequentially put cars in either cluster one or cluster two. lets start with car 1. Is car 1 closer to cluster one or cluster two?
+
+```{r}
+dist(rbind(cluster_one_centroid, Auto_data_clust[1,]), method='euclidean')
+dist(rbind(cluster_two_centroid, Auto_data_clust[1,]), method='euclidean')
+```
+
+Step 3b. Add car 1 to cluster two and adjust the centroid value for cluster 2. The new centroid value is a mean of the values of cars in that cluster. 
+```{r}
+cluster_two <- rbind(cluster_two, Auto_data_clust[1,])
+cluster_two_names <- rbind(cluster_two_names, Auto_data_names[1])
+cluster_two_centroid <- apply(cluster_two,2,function(x) mean(as.numeric(x)))
+```
+
+Step 3d. Do for all cars
+
+```{r}
+for(i in 1:nrow(Auto_data_clust)){
+  if(i == 9| i == 20){
+    next
+  }
+  if(dist(rbind(cluster_two_centroid, Auto_data_clust[i,]), method='euclidean')<
+     dist(rbind(cluster_one_centroid, Auto_data_clust[i,]), method='euclidean')){
+    cluster_two <- rbind(cluster_two, Auto_data_clust[i,])
+    cluster_two_names <- rbind(cluster_two_names, Auto_data_names[i])
+    cluster_two_centroid <- apply(cluster_two, 2, function(x) mean(as.numeric(x)))
+  }else{
+       cluster_one <- rbind(cluster_one, Auto_data_clust[i,])
+       cluster_one_names <- rbind(cluster_one_names, Auto_data_names[i])
+       cluster_one_centroid <- apply(cluster_one, 2, function(x) mean(as.numeric(x)))
+     }
+}
+```
+
+Step 4. Adjust the clusters by comparing the distance of each car to the centroid of its current cluster versus the distance to the centroid of the other cluster. Does it still belong in the current cluster? lets start with car 1. Does it belong in cluster two?
+
+```{r}
+dist(dist(rbind(cluster_one_centroid,Auto_data_clust[1,])))
+dist(dist(rbind(cluster_two_centroid,Auto_data_clust[1,])))
+```
+
+Alright, so car 1 does belong in cluster two. To complete the algorithm, iterate over the cars until none of the cars switch clusters.
+```{r K-means_step1}
+kmeans_dist <- as.matrix(dist(Auto_data_clust, method='euclidean'))
+diag(kmeans_dist) <- NA
+arrayInd(which.max(kmeans_dist), dim(kmeans_dist))
+```
+
+
+
+
+
+
+
+### R function
+
+Now we know how the algorithm works, lets use the R function kmeans. 
+
+```{r}
+kmean_out <- kmeans(Auto_data_clust,2)
+kmean_out
+```
+
+\newpage
+
+## Principal Components Analysis (PCA)
+
+Principal Components Analysis is a linear dimensionality reduction algorithm. If you want to learn more about linear algebra, I suggest the MIT Open Courseware class here : https://ocw.mit.edu/courses/mathematics/18-06-linear-algebra-spring-2010/
+There are two ways of doing PCA, Single Value Decomposition (SVD), and the method we will use today, using the covariance matrix of the data. 
+
+Step 1. Center data by subtracting the mean.
+
+Step 2. Calculate covariance matrix of data.
+
+Step 3. Perform Eigendecomposition of the covariance matrix. i.e. represent the matrix in terms of it's eigenvalues and eigen vectors
+
+Step 4. Multiply the eigen vectors by the original data to express the data in terms of the eigen vectors. 
+
+
+
+
+
+
+Step 1. Center the data by subtracting the mean of the each column from the values in that column
+
+```{r}
+Auto_data_clust_pca <- data.matrix(Auto_data_clust[1:8,])
+Center_auto <- apply(Auto_data_clust_pca, 1, function(x) x-mean(x))
+```
+
+
+Step 2. Calculate covariance matrix of the Auto data
+
+```{r}
+Covariance_auto <- cov(Center_auto)
+```
+
+Step 3.  Calculate eigen values and vectors
+
+```{r}
+Eigen_value_auto <- eigen(Covariance_auto)$value
+
+#columns are the eigen vectors
+Eigen_vector_auto <- eigen(Covariance_auto)$vector
+```
+
+Step 4. Multiply the eigen vector matrix by the original data. 
+
+```{r}
+library(ggplot2)
+PC <- as.data.frame(data.matrix(Center_auto) %*% Eigen_vector_auto)
+
+ggplot(PC, aes(PC[,1], PC[,2])) + geom_point(aes(PC[,1], PC[,2]))
+#+ geom_text(aes(label=Auto_data_names[1:8]), nudge_x = -2.5, nudge_y = 400)
+```
+
+Step 5. Find out which principal components explain the variance in the data. 
+
+```{r}
+#for each component, take the cumulative sum of eigen values up to that point and and divide by the total sum of eigen values
+round(cumsum(Eigen_value_auto)/sum(Eigen_value_auto) * 100, digits = 2)
+```
+
+Principal component 1 and 2 explain 99.99 percent of the variance. Principal component 1,2, and 3 together explain 100% of the variance in the data. 
+
+### R function 
+Now that we know how PCA works, lets use the R funtion prcomp.
+
+```{r}
+help("prcomp")
+library(ggfortify)
+autoplot(prcomp(t(Auto_data_clust_pca)))
+```
+
+\newpage
+
+## Independent Component Analysis (ICA)
+ICA is an algorithm that finds components that are independent, or subcomponents of the data. 
+
+Step 1. Whiten the data by projecting the data onto the eigen vectors (PCA).
+
+Step 2. Solve the X=AS equation by maximizing non-gaussianty in the variables(components) in S. 
+
+This results in a matrix S with components that are independent from each other. 
+
+We will use the fastICA algorithm.
+
+First we will go backwards. 
+Create a matrix S with the independent components
+```{r}
+S <- cbind(cos((1:500)/10), ((500:1)/1000))
+par(mfcol = c(1,2))
+plot(S[,1], type='l')
+plot(S[,2], type='l')
+```
+
+Create a mixing matrix A
+```{r}
+A <- matrix(c(0.5, 0.7, 0.423, 0.857), 2, 2)
+A
+```
+
+Mix S using A
+```{r}
+X <- S %*% A
+par(mfcol = c(1, 2))
+plot(X[,1], type="l")
+plot(X[,2], type="l")
+
+```
+
+Unmix using fastICA
+```{r, include=FALSE}
+library(fastICA)
+a <- fastICA(X, 2, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+             method = "R", row.norm = FALSE, maxit = 200,
+             tol = 0.0001, verbose = TRUE)
+```
+
+
+```{r}
+par(mfcol = c(1, 2))
+plot(1:500, a$S[,1], type = "l", xlab = "S'1", ylab = "")
+plot(1:500, a$S[,2], type = "l", xlab = "S'2", ylab = "")
+```
+
+
+
+
+### ICA on the auto data
+```{r, include=FALSE}
+a <- fastICA(Auto_data_clust, 7, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+             method = "R", row.norm = FALSE, maxit = 200,
+             tol = 0.0001, verbose = TRUE)
+
+```
+
+plot the independent components as a heatmap
+```{r}
+heatmap(a$S)
+```
+
+
+\newpage
+
+## Non-negative Matrix Factorization
+
+NMF is an algorithm that factorizes the given matrix into two matrices. All three matrices must have no negative values. 
+
+$$V_{mxn}=W_{mxp}H_{pxn}$$ 
+Where p is specified to the algorithm. p can be thought of as the number of features to search for. The column vector W can be thought of as the features, and the vector H van be thought of as the weights for these features. 
+
+```{r}
+Auto_data_clust <- Auto_data[,1:8]
+
+nmf_out <- nmf(Auto_data_clust, 4, set.seed(304543), nrun= 100)
+W <- nmf_out@fit@W
+H <- nmf_out@fit@H
+
+#W
+basismap(nmf_out)
+#H
+coefmap(nmf_out)
+```
+\newpage
+
+###Homework
+
+```{r}
+data(iris)
+iris_subs <- iris[,c(1, 2, 3, 4)]
+species <- iris[,5]
+```
+
+1. Run PCA, ICA, and NMF on the iris dataset. 
+  a. Explain your inputs and outputs from each algorithm. For instance, in the input for the NMF example above, out inputs were a 25 x 8 matrix,
+  and a rank of 4. The output was a matrix W with dimensions 25x4, and a matrix H with dimensions 4x8. We plotted the basis matrix (W), 
+  where each columns corresponds to a feature... etc. 
+```{r}
+# PCA
+iris_subs_pca <- data.matrix(iris_subs[1:4,])
+autoplot(prcomp(t(iris_subs_pca)))
+```
+```{r}
+# ICA
+iris_ica <- fastICA(iris_subs, 3, alg.typ = "parallel", fun = "logcosh", alpha = 1,
+             method = "R", row.norm = FALSE, maxit = 200,
+             tol = 0.0001, verbose = TRUE)
+
+```
+
+plot the independent components as a heatmap
+```{r}
+heatmap(iris_ica$X)
+iris_ica$K
+```
+```{r}
+#NMF
+iris_nmf <- nmf(iris_subs, 4, set.seed(30454), nrun= 100)
+W <- nmf_out@fit@W
+H <- nmf_out@fit@H
+
+#W
+basismap(iris_nmf)
+#H
+coefmap(iris_nmf)
+```
+
+2. Use the silhouette function in the cluster package to find the optimal number of clusters for kmeans for the iris dataset. Then cluster using hierarchical clustering and kmeans clustering. Does the data cluster by species? 
+```{r}
+pkgs <- c("factoextra",  "NbClust")
+#install.packages(pkgs)
+library(factoextra)
+library(NbClust)
+```
+
+```{r}
+iris_cluster <- scale(iris_subs)
+head(iris_cluster)
+```
+```{r}
+fviz_nbclust(iris_cluster, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+```
+```{r}
+fviz_nbclust(iris_cluster, kmeans, method = "wss")+
+  labs(subtitle = "Elbow method")
+```
+```{r}
+fviz_nbclust(iris_cluster, kmeans, nstart = 25,  method = "gap_stat", nboot = 50)+
+  labs(subtitle = "Gap statistic method")
+```
+```{r}
+iris_k <- kmeans(iris_subs,3,nstart = 25)
+iris_k
+table(iris_k$cluster, iris$Species)
+```
+```{r}
+iris_k$cluster <- as.factor(iris_k$cluster)
+ggplot(iris_subs, aes(Petal.Length, Petal.Width, color = iris_k$cluster)) + geom_point()
+```
+
+
+
+# Optional material
+On PCA:
+
+Eigen Vectors and Eigen Values http://www.visiondummy.com/2014/03/eigenvalues-eigenvectors/
+Linear Algebra by Prof. Gilbert Strang https://ocw.mit.edu/courses/mathematics/18-06-linear-algebra-spring-2010/video-lectures/
+http://www.cs.otago.ac.nz/cosc453/student_tutorials/principal_components.pdf
+https://stats.stackexchange.com/questions/2691/making-sense-of-principal-component-analysis-eigenvectors-eigenvalues
+
+On ICA: 
+
+Independent Component Analysis: Algorithms and Applications https://www.cs.helsinki.fi/u/ahyvarin/papers/NN00new.pdf
+Tutorial on ICA taken from http://rstudio-pubs-static.s3.amazonaws.com/93614_be30df613b2a4707b3e5a1a62f631d19.html

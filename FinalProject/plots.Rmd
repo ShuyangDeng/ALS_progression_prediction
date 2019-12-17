@@ -1,0 +1,86 @@
+---
+title: "Plots"
+author: "Shuyang"
+date: "11/21/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load, include=FALSE}
+library(ggplot2)
+library(ggfortify)
+library(OpenImageR)
+library(fastICA)
+library(NMF)
+```
+
+```{r}
+cluster_1 <- read.csv("cluster_1.csv")
+cluster_2 <- read.csv("cluster_2.csv")
+cluster_1$Bulbar_Onset <- factor(cluster_1$Bulbar_Onset)
+cluster_2$Bulbar_Onset <- factor(cluster_2$Bulbar_Onset)
+cluster_1$Limb_Onset <- factor(cluster_1$Limb_Onset)
+cluster_2$Limb_Onset <- factor(cluster_2$Limb_Onset)
+```
+
+```{r}
+ggplot(data = cluster_1, mapping = aes(x = ALSFRS_Slope, color = Bulbar_Onset)) +
+  geom_freqpoly(binwidth = 0.1)
+
+g12 <- ggplot(data = cluster_1, mapping = aes(x = ALSFRS_Slope, color = Limb_Onset)) +
+  geom_freqpoly(binwidth = 0.1)
+```
+
+```{r}
+summary(cluster_1$ALSFRS_Slope)
+g11 <- ggplot(data = cluster_1, mapping = aes(x = ALSFRS_Slope, color = Bulbar_Onset)) +
+  geom_freqpoly(binwidth = 0.1)
+
+g12 <- ggplot(data = cluster_1, mapping = aes(x = ALSFRS_Slope, color = Limb_Onset)) +
+  geom_freqpoly(binwidth = 0.1)
+```
+
+```{r}
+summary(cluster_2$ALSFRS_Slope)
+
+g13 <- ggplot(data = cluster_2, mapping = aes(x = ALSFRS_Slope, color = Bulbar_Onset)) +
+  geom_freqpoly(bins=30)
+
+g14 <- ggplot(data = cluster_2, mapping = aes(x = ALSFRS_Slope, color =Limb_Onset)) +
+  geom_freqpoly(bins=30)
+```
+
+
+
+```{r}
+g1 <- ggplot(data = cluster_1) +
+  
+  geom_point(mapping = aes(x = Q3_Swallowing, y = Q2_Salivation, color=Bulbar_Onset), alpha = 1 / 2)
+
+g2 <- ggplot(data = cluster_1) +
+  geom_point(mapping = aes(x = Q3_Swallowing, y = Q2_Salivation, color=Limb_Onset),alpha=1/2)
+```
+
+```{r}
+g3 <- ggplot(data = cluster_2) +
+  geom_point(mapping = aes(x = Q3_Swallowing, y = Q2_Salivation, color=Bulbar_Onset), alpha = 1 / 2)
+
+g4 <- ggplot(data = cluster_2) +
+  geom_point(mapping = aes(x = Q3_Swallowing, y = Q2_Salivation, color=Limb_Onset),alpha=1/2)
+```
+
+
+
+```{r}
+grid.arrange(g1,g2,g3,g4)
+```
+```{r}
+grid.arrange(g11,g12,g13,g14)
+```
+
+```{r}
+
+```

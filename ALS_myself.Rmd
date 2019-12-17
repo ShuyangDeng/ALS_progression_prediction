@@ -1,0 +1,338 @@
+---
+title: "ALS Dream Challenge part1"
+author: "Shuyang"
+date: "11/9/2019"
+output: 
+  html_document: default
+  pdf_document: default
+---
+```{r setDefault, include=FALSE}
+# This code chunk defines the default chunks setting
+knitr::opts_chunk$set(eval=TRUE, comment="$$$", fig.width=6)
+```
+<br>
+# Predict 3-12 month ALSFRS slope using clinical trial data collected through the PRO-ACT database
+## 
+1. Data preprocessing
+2. Feature selection
+3. Make prediction, use random forest, regression,gbm
+4. Make evaluation, use  deviation performance and Pearson Correlation 
+<br>
+# 1. Data preprocessing
+resource:
+https://media.nature.com/original/nature-assets/nbt/journal/v33/n1/extref/nbt.3051-S1.pdf
+https://www.synapse.org/#!Synapse:syn2873386/wiki/391432
+https://docs.google.com/presentation/d/1SrXVtQWmrkN-zw9i04m8nGu4ki6VJISL6MktlJv81G4/edit#slide=id.g4951577fbf_0_155
+https://www.nature.com/articles/nbt.3051.pdf
+https://nctu.partners.org/ProACT/Document/DisplayLatest/2
+
+file:///Users/dengshuyang/Desktop/ML2019/FinalProject/ALS_Dream_Challenge_Data_Analysis_Revision.html
+```{r, results='hold'}
+library(tidyverse)
+library(dplyr)
+```
+<br>
+## Read data
+```{r, results='hold'}
+setwd('/Users/dengshuyang/Desktop/ML2019/')
+alsfrs <- read.csv('PROACT/alsfrs.csv', stringsAsFactors = FALSE)
+demographics <- read.csv('PROACT/demographics.csv', stringsAsFactors = FALSE)
+Treatment <- read.csv('PROACT/Treatment.csv', stringsAsFactors = FALSE)
+FamilyHistory <- read.csv('PROACT/FamilyHistory.csv', stringsAsFactors = FALSE, na.strings=c('',NA))
+AlsHistory <- read.csv('PROACT/AlsHistory.csv', stringsAsFactors = FALSE)
+Fvc <- read.csv('PROACT/Fvc.csv', stringsAsFactors = FALSE)
+Svc <- read.csv('PROACT/Svc.csv', stringsAsFactors = FALSE)
+VitalSigns <- read.csv('PROACT/VitalSigns.csv', stringsAsFactors = FALSE)
+Labs <- read.csv('PROACT/labs.csv', stringsAsFactors = FALSE)
+```
+<br>
+### A.ALSFRS
+```{r, results='hold'}
+# filter alsfrs delta is from 0 to 90 days and 91 to 366 days, make last one for final test data for prediction
+alsfrs3 <- alsfrs[which(0 < alsfrs[,"ALSFRS_Delta"] & alsfrs[,"ALSFRS_Delta"]<=90), ]
+alsfrs12 <- alsfrs[which(90 < alsfrs[,"ALSFRS_Delta"] & alsfrs[,"ALSFRS_Delta"]<= 366), ]
+```
+
+```{r, results='hold'}
+# sort alsfrs df by subject id
+#alsfrs_combine <- rbind(alsfrs3, alsfrs12)
+#alsfrs_combine <- alsfrs_combine[order(alsfrs_combine$subject_id),]
+
+# delete alsfrs_r and 3 more related questions and last 2 col
+alsfrs12 <- alsfrs12[, -(15:20)]
+
+# remove col with more than 75% na
+alsfrs12 <- alsfrs12[lapply(alsfrs12, function(x) sum(is.na(x))/length(x)) < 0.75]
+```
+
+```{r, results='hold'}
+# remove rows that alsfrs is na
+completeFun <- function(data, desiredCols) {
+  completeVec <- complete.cases(data[, desiredCols])
+  return(data[completeVec, ])
+}
+
+alsfrs_final <- completeFun(alsfrs12, 'ALSFRS_Total')
+```
+ 
+```{r, results='hold'}
+# impute na in variables except delta and score with mean 
+for(i in 2:11){
+  alsfrs_final[is.na(alsfrs_final[,i]), i] <- mean(alsfrs_final[,i], na.rm=TRUE)
+}
+```
+
+```{r, results='hold'}
+#calculate slope and mutate it to a new column for each subject_id
+
+ALSFRS_slope <- alsfrs_final %>% group_by(subject_id) %>% summarise(ALSFRS_Slope=lm(ALSFRS_Total ~ ALSFRS_Delta)$coeff[[2]])%>% dplyr::select(ALSFRS_Slope)
+
+# calculate mean score for each col to let redundant rows into one row for each subject_id
+ALSFRS_mean <- alsfrs_final%>% group_by(subject_id) %>% summarise_each(funs(round(mean(., na.rm=TRUE))), Q1_Speech:ALSFRS_Total)
+combined <- cbind(ALSFRS_mean, ALSFRS_slope)
+
+# get the final version of alsfrs_final
+alsfrs_final <- combined%>% drop_na(ALSFRS_Slope) %>% replace(is.na(.), 0)
+```
+<br>
+### B. Family history
+```{r, results='hold'}
+# if patient has a relative who have neuro diease, label as 1, or(if patient has no suffering relative) label as 0
+fh <- FamilyHistory %>% dplyr::select(subject_id, Neurological_Disease) %>% mutate(Fam_His=is.na(Neurological_Disease)) %>% dplyr::select(-Neurological_Disease)
+
+famhis=ifelse(fh$Fam_His=='TRUE', 0,1)
+fh_final <- cbind(fh, famhis) %>% dplyr::select(-Fam_His)
+```
+
+```{r, results='hold'}
+# combine fh_final with alsfrs_final
+A_B <- left_join(alsfrs_final, fh_final, by='subject_id') %>% replace_na(list(famhis=0))
+A_B <- na.omit(A_B)
+```
+<br>
+### C.Demographics
+```{r, results='hold'}
+#remove useless information and keep col with less than 75% NAs
+demo <- demographics %>% dplyr::select(-Demographics_Delta, -Date_of_Birth)
+demo <- demographics[lapply(demographics, function(x) sum(is.na(x))/length(x)) < 0.75]
+```
+
+```{r, results='hold'}
+# race is caucasian labels as True/1
+demo <- demo %>% replace_na(list(Race_Caucasian = FALSE))
+# convert gender information as factor
+demo$Sex <- factor(demo$Sex, levels=c("Male", "Female"), labels = c("1", "0"))
+
+```
+
+```{r, results='hold'}
+# non-hispanic or latino was labeled as false/0, other were labeled as 1
+demo$Ethnicity[demo$Ethnicity==''] <- NA
+demo_final <- demo%>%dplyr::select(subject_id, Ethnicity)%>% mutate(ethnicity=is.na(Ethnicity))
+
+ethnicity_col=ifelse(demo_final$ethnicity=='TRUE', 1,0)
+demo_final <- cbind(demo, ethnicity_col) %>% dplyr::select(-Ethnicity, -Demographics_Delta, -Race_Other_Specify)
+
+#replace na of age as mean age
+demo_final[is.na(demo_final[,2]), 2] <- round(mean(demo_final[,2], na.rm = TRUE))
+```
+
+```{r, results='hold'}
+#combine demo, alsfrs_final, and fh_final
+ABC <- left_join(A_B, demo_final, by='subject_id')
+#write.csv(ABC, file='ABC.csv')
+```
+
+### D.Treatment
+```{r, results='hold'}
+#combine with ABC
+ABCD <- ABC %>% left_join(Treatment, by = "subject_id") %>% dplyr::select(-Treatment_Group_Delta) %>% replace_na(list(Study_Arm = "None"))
+
+#The 3 different groups are converted into factors and labeled as numerical values 2: Placebo, 1: Active, and 0: None
+ABCD$Study_Arm <- factor(ABCD$Study_Arm, levels=c("Placebo", "Active", "None"), labels = c("2", "1","0"))
+```
+### E.AlsHistory
+```{r, results='hold'}
+alshis_final <- AlsHistory %>% dplyr::select(subject_id, Site_of_Onset, Onset_Delta) %>% mutate(Bulbar_Onset=AlsHistory$Site_of_Onset=="Onset: Bulbar", Limb_Bulbar_Onset=AlsHistory$Site_of_Onset=="Onset: Limb and Bulbar", Limb_Onset=AlsHistory$Site_of_Onset=="Onset: Limb", Spine_Onset=AlsHistory$Site_of_Onset=="Onset: Spine", Other_Onset=AlsHistory$Site_of_Onset=="Onset: Other") %>% replace_na(list(Bulbar_Onset = FALSE, Limb_Bulbar_Onset = FALSE, Limb_Onset = FALSE, Spine_Onset = FALSE, Other_Onset = FALSE)) %>% dplyr::select (-Site_of_Onset)
+```
+
+```{r, results='hold'}
+#false 0, true 1
+cols <- sapply(alshis_final, is.logical)
+alshis_final[,cols] <- lapply(alshis_final[,cols], as.numeric)
+alshis_final <- alshis_final %>% group_by(subject_id) %>%  summarise_each(funs(mean(., na.rm = TRUE)), Onset_Delta:Other_Onset)
+
+TWO_BINARY <- alshis_final[,3:7]%>% apply(2, function(x) ifelse(x > 0, 1, x))
+TWO_names <- alshis_final %>% dplyr::select(subject_id, Onset_Delta)
+TWO_FILTERED <- cbind(TWO_names, TWO_BINARY)
+#alshis_final <- cbind(alshis_final, onset_col) %>% dplyr::select(-Site_of_Onset, -site_onset)
+```
+
+```{r, results='hold'}
+ABCDE_final <- left_join(ABCD, TWO_FILTERED, by='subject_id')
+```
+### F.Fvc
+```{r, results='hold'}
+# remove rows whose delta is more than 91 days
+fvc <- Fvc %>% filter(Forced_Vital_Capacity_Delta<91) %>% dplyr::select(-Forced_Vital_Capacity_Units, -pct_of_Normal_Trial_1, -pct_of_Normal_Trial_2, -pct_of_Normal_Trial_3, -Subject_Normal)
+
+#remove col with more than 50% missing values
+fvc <- fvc[, -which(colMeans(is.na(fvc)) > 0.5)]
+fvc <- na.omit(fvc)
+fvc<- fvc %>% group_by(subject_id) %>%  summarise_each(funs(mean(., na.rm = TRUE)), Subject_Liters_Trial_1:Forced_Vital_Capacity_Delta)
+#combine
+ABCDEF <- left_join(ABCDE_final, fvc, by='subject_id')
+colnames(ABCDEF)[which(names(ABCDEF) == "Subject_Liters_Trial_1")] <- "FVC_Subject_Liters_Trial_1"
+```
+
+```{r, results='hold'}
+ABCDEF <- na.omit(ABCDEF)
+```
+
+
+
+### G.Svc
+```{r, results='hold'}
+# remove rows whose delta is more than 91 days
+svc <- Svc %>% filter(Slow_vital_Capacity_Delta<91) %>% dplyr::select(-Slow_Vital_Capacity_Units, -pct_of_Normal_Trial_1)
+
+#remove col with more than 75% missing values
+svc <- svc[, -which(colMeans(is.na(svc)) > 0.75)]
+
+# we noticed that after combination, the subject_id has no overlap, so we skip svc factor
+```
+### H.VitalSigns
+```{r, results='hold'}
+vsigns <- VitalSigns %>% filter(Vital_Signs_Delta<91) %>% dplyr::select(-Blood_Pressure_Diastolic_Units, -Blood_Pressure_Systolic_Units, -Height_Units, -Pulse_Units, -Respiratory_Rate_Units, -Temperature_Units, -Weight_Units)
+#remove variables that have more than 75% missingness and eliminate the columns with the unit labels
+#blood_pressure units is mmHg
+#height units is inches
+#weight units is kg
+#pulse units is bpm
+#temperature is Celcius
+#respiratory rate is resp/min
+vsigns <- vsigns[, -which(colMeans(is.na(vsigns))> 0.75)]
+
+#replace nan as mean of each col
+for(i in 2:8){
+  vsigns[is.na(vsigns[,i]), i] <- mean(vsigns[,i], na.rm=TRUE)
+}
+```
+
+```{r, results='hold'}
+vsigns_final<- vsigns %>% group_by(subject_id) %>%  summarise_each(funs(mean(., na.rm = TRUE)), Blood_Pressure_Diastolic:Vital_Signs_Delta)
+# combine
+ABCDEFH <- left_join(ABCDEF, vsigns_final, by='subject_id')
+```
+
+### I.Labs
+```{r, results='hold'}
+labs_test <- Labs %>% filter(Laboratory_Delta<366 & Laboratory_Delta>0) %>% group_by(Test_Name) %>% tally() %>% filter(n>20000)
+```
+
+```{r, results='hold'}
+#create columns for each of the 14 tests determined above. For NA values, replace them with zeroes.
+labs_final <- Labs %>% filter(Test_Name %in% c("ALT(SGPT)","AST(SGOT)", "Creatinine", "Glucose", "Hematocrit", "Hemoglobin", "Platelets", "Red Blood Cells (RBC)", "White Blood Cell (WBC)", 'Absolute Eosinophil Count', 'Blood Urea Nitrogen (BUN)', 'Chloride', 'Potassium', 'Sodium'), Laboratory_Delta<366 & Laboratory_Delta>0, Test_Result!="-") %>% mutate(row = row_number()) %>% spread(Test_Name, Test_Result) %>% group_by(subject_id) %>% replace_na(list(`ALT(SGPT)` = 0,`AST(SGOT)`= 0, Creatinine= 0, Glucose=0, Hematocrit=0, Hemoglobin=0, Platelets=0, `Red Blood Cells (RBC)`=0, `White Blood Cell (WBC)`= 0, `Absolute Eosinophil Count`=0, `Blood Urea Nitrogen (BUN)`=0, Chloride=0, Potassium=0, Sodium=0)) %>% dplyr::select(-Test_Unit, -row, -Laboratory_Delta)
+```
+
+```{r, results='hold'}
+#coerce each of the variables into numeric datatype
+labs_final$`ALT(SGPT)`<- as.numeric(labs_final$`ALT(SGPT)`)
+labs_final$`AST(SGOT)`<- as.numeric(labs_final$`AST(SGOT)`)
+labs_final$Creatinine <- as.numeric(labs_final$Creatinine)
+labs_final$Glucose <- as.numeric(labs_final$Glucose)
+labs_final$Hematocrit <- as.numeric(labs_final$Hematocrit)
+labs_final$Hemoglobin<- as.numeric(labs_final$Hemoglobin)
+labs_final$Platelets <- as.numeric(labs_final$Platelets)
+labs_final$`Red Blood Cells (RBC)` <- as.numeric(labs_final$`Red Blood Cells (RBC)`)
+labs_final$`White Blood Cell (WBC)` <- as.numeric(labs_final$`White Blood Cell (WBC)`)
+labs_final$`Absolute Eosinophil Count` <- as.numeric(labs_final$`Absolute Eosinophil Count`)
+labs_final$`Blood Urea Nitrogen (BUN)` <- as.numeric(labs_final$`Blood Urea Nitrogen (BUN)`)
+labs_final$Chloride <- as.numeric(labs_final$Chloride)
+labs_final$Potassium <- as.numeric(labs_final$Potassium)
+labs_final$Sodium <- as.numeric(labs_final$Sodium)
+```
+
+```{r, results='hold'}
+#for lab tests with multiple values for the same patient, calculate the mean
+labs_final <- labs_final %>% rename( AEC=`Absolute Eosinophil Count`,ALT= `ALT(SGPT)`, AST =`AST(SGOT)`, RBC= `Red Blood Cells (RBC)`, WBC=`White Blood Cell (WBC)`) %>% group_by(subject_id)%>% summarise_each(funs(mean(., na.rm = TRUE)),AEC:WBC)
+```
+
+```{r, results='hold'}
+#combine and omit na
+alsslope_final <- left_join(ABCDEFH, labs_final, by='subject_id')
+
+```
+
+```{r, results='hold'}
+# all 0 convert to 1, 1 convert to 2 after as.factor funciton
+# Note that Study_Arm: 1: Placebo(original 2), 2: Active(original 1), and 3: None(original 0)
+alsslope_final <- transform(alsslope_final, famhis=as.factor(famhis), Race_Caucasian=as.factor(Race_Caucasian), ethnicity_col=as.factor(ethnicity_col))
+str(alsslope_final)
+
+```
+```{r}
+#separate delta within 0-90 and 91-366 
+#0-90 csv is for processing and train and test and fit model
+#91-366 for external test dataset
+ALS_FINAL12 <- alsslope_final
+#ALS_FINAL12 <- alsslope_final
+```
+
+### impute data using mice
+resource: https://datascienceplus.com/imputing-missing-data-with-r-mice-package/
+```{r, results='hold'}
+# impute data using mice
+#https://datascienceplus.com/imputing-missing-data-with-r-mice-package/
+library(mice)
+md.pattern(ALS_FINAL3)
+md.pattern(ALS_FINAL12)
+library(VIM)
+#aggr_plot <- aggr(alsslope_final, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(alsslope_final), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern"))
+```
+
+```{r, results='hold'}
+#marginplot(ALS_FINAL3[c(1,2)])
+#marginplot(ALS_FINAL12[c(1,2)])
+tempData3 <- mice(ALS_FINAL3,m=5,maxit=10,meth='cart',seed=500)
+summary(tempData3)
+```
+
+```{r, results='hold'}
+tempData12 <- mice(ALS_FINAL12,m=5,maxit=10,meth='cart',seed=500)
+summary(tempData12)
+```
+
+
+```{r, results='hold'}
+completedData3 <- complete(tempData3,1)
+ALS_Slope_FINAL3 <- completedData3
+dim(ALS_Slope_FINAL3)
+```
+
+```{r, results='hold'}
+completedData12 <- complete(tempData12,1)
+ALS_FINAL12 <- completedData12
+dim(ALS_FINAL12)
+```
+
+
+
+```{r, results='hold'}
+#write.csv(ALS_Slope_FINAL3, file='ALS_FINAL3.csv')
+#write.csv(ALS_FINAL12, file='ALS_FINAL12.csv')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

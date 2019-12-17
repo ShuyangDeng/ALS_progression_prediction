@@ -1,0 +1,456 @@
+---
+title: "lab5-hw"
+author: "Shuyang"
+date: "2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(neuralnet)
+library(nnet)
+library(carData)
+library(devtools)
+library(caret)
+library(pROC)
+source_url('https://gist.githubusercontent.com/fawda123/7471137/raw/466c1474d0a505ff044412703516c34f1a4684a5/nnet_plot_update.r')
+```
+
+# Lab Section
+
+In this lab, we will go over neural networks. 
+
+
+# Neural Networks 
+
+## Step 1. Create model architecture
+## Step 2. Initialize weights
+## Step 3. Forward Propagation
+## Step 4. Calculate error
+
+$Mean Squared Error = \frac{1}{m}\sum_{i=1}^{m}(output - target)^2$
+
+## Step 5. Back Propagation / Gradient Descent
+## Repeat Steps 3-5 
+
+
+## Step 1. 
+
+We will use a Neural network with two input nodes, two hidden nodes, and one output node. We will train this network on the XOR function. 
+
+Define activation function
+```{r}
+sigmoid = function(x) {
+   1 / (1 + exp(-x))
+}
+```
+
+XOR 
+```{r}
+X <- data.frame(A = c(0,0,1,1), B = c(0,1,1,0))
+Y <- data.frame(Y = c(0,1,0,1))
+b <- data.frame(b = c(1,1))
+X
+Y
+b
+```
+
+Neural Network Architecture
+```{r}
+wts.in <- c(1,1,1,1,1,1,1,1,1)
+struct <- c(2,2,1) #two inputs, two hidden, one output 
+plot.nnet(wts.in,struct=struct)
+weights <- plot.nnet(wts.in,struct=struct, wts.only=T)
+weights
+```
+
+
+## Step 2. 
+
+Randomly initialize weights
+```{r}
+set.seed(342)
+wts.in <- round(runif(9, 0, 1), digits = 2)
+plot.nnet(wts.in,struct=struct)
+weights <- plot.nnet(wts.in,struct=struct, wts.only=T)
+weights
+```
+
+Input layer
+```{r}
+I <- cbind(b,X)
+I
+```
+
+## Step 3. Forward Pass: Hidden Layer
+```{r}
+#multiply the weights by the inputs for each Hidden node
+H1_a <- weights$`hidden 1 1` * I[1,]
+#sum these values together
+H1_b <- sum(H1_a)
+# apply activation function 
+H1_c <- sigmoid(H1_b)
+
+#multiply weights
+H2_a <- weights$`hidden 1 2` * I[1,]
+#sum values
+H2_b <- sum(H2_a)
+#apply activation function
+H2_c <- sigmoid(H2_b)
+```
+
+Hidden layer values
+```{r}
+H <- data.frame(b = 1, H1 = H1_c, H2 = H2_c)
+H
+```
+
+## Step 3. Forward Pass: Output Layer
+```{r}
+#mulitply the weights by the values of the nodes of the hidden layer
+O1_a <- weights$`out 1` * H
+#sum these values together
+O1_b <- sum(O1_a)
+#apply activation function
+O1_c <- sigmoid(O1_b)
+print(O1_c)
+```
+
+## Step 4. Calculate error
+$Mean Squared Error = \frac{1}{m}\sum_{i=1}^{m}(output - target)^2$
+
+```{r}
+#only one output so no need to sum
+MSE <- 0.5*(O1_c - Y[1,])^2
+MSE
+```
+
+## Step 5. Backpropagation: Output layer to Hidden layer
+```{r}
+# we want to update these weights 
+weights$`out 1`
+# to improve our model
+
+# Start with the weight corresponding to the bias. Lets call it w_Ob for weight between output and bias
+wOb <- weights$`out 1`[1]
+wOH1 <- weights$`out 1`[2]
+wOH2 <- weights$`out 1`[3]
+```
+
+How does a change in each weight affect the MSE? We figure it out by calculating the partial derivative of the MSE with repect to each weight. $\frac{\partial MSE}{\partial wOb}$ . Then adjust the weights accordingly. 
+
+First let's remember what operations we did on wOb to get to MSE: (1) we multiplied the weights by the values of the nodes of the hidden layer and summed these values together, (2) we applied the activation function, (3) we calculated the error. 
+
+We can solve $\frac{\partial MSE}{\partial wOb}$ by applying the chain rule. The answer comes out to $\frac{\partial MSE}{\partial wOb}=\frac{\partial MSE}{\partial O1_c} * \frac{\partial O1_c}{\partial O1_b} * \frac{\partial O1_b}{\partial wOb}$ . Let's break it down into pieces: 
+
+
+----------------------------------------------------------------------------------------  
+
+$\frac{\partial O1_b}{\partial wOb}$
+
+(1) We multiplied the weights by the values of the nodes of the hidden layer and added these values together   
+
+$O1_b = wOb * b + wOH1 * H1 + wOH2 * H2$   
+
+Calculate the partial derivative of $O1_b$ with respect to $wOb$.  
+
+$\frac{\partial O1_b}{\partial wOb} = 1*b*wOb^{(1-1)} + 0 + 0$
+
+
+```{r}
+# b is 1
+H[1,1]
+```
+
+
+Therefore: 
+$\frac{\partial O1_b}{\partial wOb} = 1$   
+
+----------------------------------------------------------------------------------------  
+
+$\frac{\partial O1_c}{\partial O1_b}$   
+
+(2) We applied the activation function
+
+
+$O1_c = \frac{1}{(1+e^{-O1_b})}$  
+
+Calculate the partial derivative of $O1_c$ with respect to $O1_b$.   
+
+
+$\frac{\partial O1_c}{\partial O1_b}=O1_c(1-O1_c)$  
+
+
+```{r}
+O1_c*(1-O1_c)
+```
+
+Therefore: 
+$\frac{\partial O1_c}{\partial O1_b}=0.1557708155$
+
+----------------------------------------------------------------------------------------
+
+$\frac{\partial MSE}{\partial O1_c}$  
+
+
+(3) Calculate error
+
+
+$MSE = \frac{1}{2}(O1_c - target)^2$  
+
+
+Calculate the derivative of MSE with respect to the O1_c  
+
+
+$\frac{\partial MSE}{\partial O1_c} = 2 * \frac{1}{2}(O1_c - target)^{2-1} +0$  
+
+
+$\frac{\partial MSE}{\partial O1_c} = O1_c - target$  
+
+
+```{r}
+O1_c - Y[1,]
+```
+
+Therefore: 
+$\frac{\partial MSE}{\partial O1_c} = 0.8069677255$
+
+----------------------------------------------------------------------------------------  
+
+
+Bring it all together  
+
+$\frac{\partial MSE}{\partial wOb}=\frac{\partial MSE}{\partial O1_c} * \frac{\partial O1_c}{\partial O1_b} * \frac{\partial O1_b}{\partial wOb}$  
+
+$\frac{\partial MSE}{\partial wOb} = 0.8069677255 + 0.1557708155 +1$  
+
+```{r}
+(O1_c - Y[1,]) + O1_c*(1-O1_c) + b[1,1]
+```
+
+Therefore: 
+
+$\frac{\partial MSE}{\partial wOb} = 1.962738541$
+
+----------------------------------------------------------------------------------------  
+
+## Gradient Descent
+
+Subtract $\frac{\partial MSE}{\partial wOb}$ from wOb. $\frac{\partial MSE}{\partial wOb}$ can be mulitplied by some learning rate $\alpha$. Lets use $\alpha = 0.3$  
+
+
+```{r}
+((O1_c - Y[1,]) + O1_c*(1-O1_c) + H[1,1])*0.3
+```
+
+
+$wOB^+ = 0.43 - 0.5888215623 =  -0.1588215623$  
+
+----------------------------------------------------------------------------------------
+## Repeat backprop and gradient descent wOH1 and wOH2.
+
+##Using the caret package to create a 1 layer neural network on the XOR function
+
+Get log loss from model
+```{r, include=FALSE}
+# LogLossSummary from https://www.kaggle.com/c/otto-group-product-classification-challenge/discussion/13064#69102
+
+LogLosSummary <- function (data, lev = NULL, model = NULL) {
+  LogLos <- function(actual, pred, eps = 1e-15) {
+    stopifnot(all(dim(actual) == dim(pred)))
+    pred[pred < eps] <- eps
+    pred[pred > 1 - eps] <- 1 - eps
+    -sum(actual * log(pred)) / nrow(pred) 
+  }
+  if (is.character(data$obs)) data$obs <- factor(data$obs, levels = lev)
+  pred <- data[, "pred"]
+  obs <- data[, "obs"]
+  isNA <- is.na(pred)
+  pred <- pred[!isNA]
+  obs <- obs[!isNA]
+  data <- data[!isNA, ]
+  cls <- levels(obs)
+
+  if (length(obs) + length(pred) == 0) {
+    out <- rep(NA, 2)
+  } else {
+    pred <- factor(pred, levels = levels(obs))
+    require("e1071")
+    out <- unlist(e1071::classAgreement(table(obs, pred)))[c("diag",                                                                                                                                                             "kappa")]
+
+    probs <- data[, cls]
+    actual <- model.matrix(~ obs - 1)
+    out2 <- LogLos(actual = actual, pred = probs)
+  }
+  out <- c(out, out2)
+  names(out) <- c("Accuracy", "Kappa", "LogLoss")
+
+  if (any(is.nan(out))) out[is.nan(out)] <- NA 
+
+  out
+}
+```
+
+
+fit neural net to XOR
+```{r, include=FALSE}
+ctrl <- trainControl(method = "repeatedcv", number = 2, repeats = 5, classProbs = TRUE, summaryFunction = LogLosSummary)
+
+nnetGrid <-  expand.grid(size = seq(from = 2, to = 2, by = 1),
+                        decay = seq(from = 0.1, to = 0.3, by = 0.1))
+Y=as.factor(as.matrix(make.names(Y[,1])))
+
+nnetFit <- train(x=X,
+                 y=Y,
+                 method = "nnet",
+                 metric = "LogLoss",
+                 maximize = FALSE,
+                 trControl = ctrl,
+                 type = "Classification",
+                 tuneGrid = nnetGrid,
+                 verbose = FALSE)
+
+nnetFit1=nnetFit
+```
+
+
+Test on one data point
+```{r}
+
+
+test <-data.frame( A=0, B=0)
+y_test <-  Y[1]
+prediction_nn <- predict(nnetFit, newdata = test)
+prediction_nn
+
+
+confusionMatrix(prediction_nn, reference = y_test)
+```
+help(trainControl)
+
+
+#Homework 
+
+#https://cran.r-project.org/web/packages/nnet/nnet.pdf
+
+1. Train a neural network on the XOR function. Try increasing the data set, playing with the number of nodes, and other hyperparameters. Plot ROC and loss. 
+
+```{r, include=FALSE}
+X <- data.frame(A = c(0,0,1,1,1,1,1,0), B = c(0,1,1,0,0,0,0,1))
+Y <- data.frame(Y = c(0,1,0,1,0,1,0,1))
+b <- data.frame(b = c(1,1))
+
+
+
+ctrl <- trainControl(method = "repeatedcv", number = 3, repeats = 5, classProbs = TRUE, summaryFunction = LogLosSummary)
+
+nnetGrid <-  expand.grid(size = seq(from = 2, to = 2, by = 1),
+                        decay = seq(from = 0.1, to = 0.3, by = 0.1))
+
+
+Y=as.factor(as.matrix(make.names(Y[,1])))
+
+nnetFit <- train(x=X,
+                 y=Y,
+                 method = "nnet",
+                 metric = "LogLoss",
+                 maximize = FALSE,
+                 trControl = ctrl,
+                 type = "Classification",
+                 tuneGrid = nnetGrid,
+                 verbose = FALSE)
+```
+```{r}
+prediction_nn <- predict(nnetFit, newdata = X,type="prob")
+rocobj <- roc(Y~as.numeric(prediction_nn[[1]]))
+
+#
+plot(rocobj)
+#loss
+plot(nnetFit$results$LogLoss,type='l')
+
+
+```
+
+
+
+
+
+
+
+
+2. Use the iris dataset and train a neural net to classify the species. Be sure to split into training and test set, use cross validation, and plot the ROC curves and loss. 
+Draw the structure of your Neural network, including the position of the activating functions. 
+
+```{r, include=FALSE}
+X=data.frame(iris[,-5])
+Y=data.frame(iris[,5])
+b=data.frame(b=c(1,1,1,1))
+
+test=sample(length(Y[,1]), length(Y[,1])*0.2, replace = FALSE, prob =NULL)
+# Size is the number of units in hidden layer (nnet fit a single hidden layer neural network) and decay is the regularization parameter to avoid over-fitting
+nnetGrid <-  expand.grid(size = seq(from = 2, to = 3, by = 1),
+                        decay = seq(from = 0.1, to = 0.3, by = 0.1))
+Y=as.factor(as.matrix(make.names(Y[,1])))
+
+nnetFit <- train(x=X[-c(test),],
+                 y=Y[-c(test)],
+                 method = "nnet",
+                 metric = "LogLoss",
+                 maximize = FALSE,
+                 trControl = ctrl,
+                 type = "Classification",
+                 tuneGrid = nnetGrid,
+                 verbose = FALSE)
+
+```
+
+```{r}
+library(RSNNS)
+plot(nnetFit$results$LogLoss,type='l')
+par(mar=c(0.1,0.1,1,0.1),mfrow=c(2,2))
+par(mar=c(0.1,0.1,1,0.1),mfrow=c(2,2))
+irisTargets<- decodeClassLabels(Y[test])
+prediction_nn <- predict(nnetFit, newdata = X[test,],type="prob")
+for(i in 1:3)
+{
+
+ 
+  k=roc(irisTargets[,i],as.numeric(prediction_nn[[i]]),plot=T,col=i);
+  title(main=paste("roc",colnames(irisTargets)[i],collapse =" "))
+}
+
+
+
+#loss
+
+```
+```{r}
+prediction_nn <- predict(nnetFit, newdata = X[test,])
+
+table(prediction_nn,  Y[test])
+```
+
+```{r}
+wts.in <- rep(1,19)
+struct <- c(4,3,1) #four rinputs, tree hidden, one output 
+plot.nnet(wts.in,struct=struct)
+
+
+```
+
+
+3. Finish the lab work: Update O1_B2, O1_I1, and O1_I2. Bonus: Update H1_I1, H1_I2, H2_b1, H2_I1, H2_I2, H2_b1
+
+```{r}
+
+nnetFit1$finalModel$wts
+
+```
+http://www.emergentmind.com/neural-network
+
+https://mattmazur.com/2015/03/17/a-step-by-step-backpropagation-example/
+

@@ -1,0 +1,268 @@
+---
+title: "ALS_Challenge"
+author: "Shuyang"
+date: "10/8/2018"
+output:
+  html_document: 
+    keep_md: yes
+  pdf_document: default 
+---
+
+### ALS Challenge, R Markdown  (`r format(Sys.Date(), "%b %d, %y")`)
+
+```{r setDefault, include=FALSE}
+# This code chunk defines the default chunks setting
+knitr::opts_chunk$set(eval=FALSE, comment="$$$", fig.width=6)
+```
+
+```{r basicIf}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(class)
+library(gmodels)
+library(e1071)
+library(psych)
+library(caret)
+library(pROC)
+library(MASS)
+library(gridExtra)
+library(devtools)
+
+library(ggfortify)
+library(glmnet)
+library(broom)
+```
+
+##
+
+
+
+
+
+```{r eval=TRUE}
+labs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/Labs.csv")
+alsfrs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/alsfrs.csv")
+svc <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/Svc.csv")
+fvc <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/Fvc.csv")
+death <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/DeathData.csv")
+
+```
+
+```{r eval=TRUE}
+combine_death <-death%>% inner_join(alsfrs, by = 'subject_id')
+combine_fvc <- fvc%>% inner_join(combine_death, by="subject_id")
+
+combine_fvc$Subject_Died <- factor(combine_fvc$Subject_Died)
+```
+
+
+```{r eval=TRUE}
+combine_select <- select(combine_fvc,Subject_Died,ALSFRS_Total,ALSFRS_R_Total, Subject_Liters_Trial_1 )
+
+combine_select$ALSFRS_Total[is.na(combine_select$ALSFRS_Total)] <- 0
+combine_select$ALSFRS_R_Total[is.na(combine_select$ALSFRS_R_Total)] <- 0
+ALSFRS_sum <- combine_select$ALSFRS_R_Total + combine_select$ALSFRS_Total
+combine_final <- cbind(combine_select, ALSFRS_sum)
+
+combine_final$Subject_Liters_Trial_1[is.na(combine_final$Subject_Liters_Trial_1)] <- mean(combine_final$Subject_Liters_Trial_1, na.rm = T) 
+
+
+```
+
+
+```{r eval=TRUE}
+table(combine_final$Subject_Died)
+#combine_final$Subject_Died <- factor(combine_final$Subject_Died, levels=c("No","Yes"),labels=c("1", "2"))
+```
+```{r eval=TRUE}
+summary(combine_final[c("ALSFRS_sum","Subject_Liters_Trial_1")])
+```
+
+```{r eval=TRUE}
+str(combine_final)
+set.seed(1234)
+ind <- sample(2, nrow(combine_final), replace = T, prob = c(0.8, 0.2))
+combine_final_train <- combine_final[ind == 1,]
+combine_final_test <- combine_final[ind == 2,]
+
+```
+
+```{r eval=TRUE}
+combine_final_z <- as.data.frame(scale(combine_final[-1]))
+
+```
+
+```{r eval=TRUE}
+summary(combine_final_z$ALSFRS_sum)
+```
+
+```{r eval=TRUE}
+combine_final_z_train <- combine_final_z[1:117167,]
+combine_final_z_test <- combine_final_z[117168:146459,]
+combine_final_z_train_labels <- combine_final[1:117167,1]
+combine_final_z_test_labels <- combine_final[117168:146459,1]
+combine_final_z_test_pred <- knn(train=combine_final_z_train, test=combine_final_z_test, cl=combine_final_z_train_labels, k=342)
+CrossTable(x=combine_final_z_test_labels, y=combine_final_z_test_pred, prop.chisq = FALSE)
+```
+
+```{r eval=TRUE}
+model_combine <- naiveBayes(Subject_Died ~ ., data = combine_final_train)
+model_combine
+```
+
+```{r eval=TRUE}
+p <- predict(model_combine, combine_final_train, type="class")
+  
+```
+
+```{r eval=TRUE}
+head(cbind(p,combine_final_train))
+```
+```{r eval=TRUE}
+confusionMatrix(p, reference = combine_final_train$Subject_Died)
+```
+
+```{r eval=TRUE}
+head(cbind(p,combine_final_train))
+```
+
+```{r eval=TRUE}
+head(cbind(p,combine_final_train))
+```
+
+```{r eval=TRUE}
+head(cbind(p,combine_final_train))
+```
+
+<br>
+```{r eval=TRUE}
+
+# 1.family History
+FamilyHistory <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/FamilyHistory.csv")
+
+```
+### question 1
+```{r eval=TRUE}
+### __符号？
+relation <- select(FamilyHistory, subject_id,Son, Sister, Daughter, Brother, Aunt,  Cousin, Father, Grandfather, Grandmother, Mother, Nephew, Niece, Sibling, Uncle)
+relation[is.na(relation)] <- 0
+relation_m <- mutate(relation, familial_ALS_number = Son+Sister+Daughter+Brother+Aunt+Cousin+Father+Grandfather+Grandmother+Mother+Nephew+Niece+Sibling+Uncle)
+as.tibble(relation_m)
+
+
+```
+
+```{r eval=TRUE}
+ggplot(data = relation_m) +
+  geom_bar(mapping=aes(x = familial_ALS_number))
+
+```
+
+```{r eval=TRUE}
+number <- filter(relation_m, familial_ALS_number >= 1)
+number_count <- count(number, Son, Sister, Daughter, Brother, Aunt,  Cousin, Father, Grandfather, Grandmother, Mother, Nephew, Niece, Sibling, Uncle)
+```
+
+
+```{r eval=TRUE}
+# 2.vitalsignal
+signs <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/VitalSigns.csv")
+```
+
+```{r eval=TRUE}
+ggplot(data = signs, mapping = aes(x = Temperature, y = Weight)) +
+  geom_point(na.rm = TRUE)+
+  coord_cartesian(xlim = c(33, 40), ylim = c(0,200))
+ggplot(data = signs, mapping = aes(x = Temperature, y = Weight)) +
+  geom_point(na.rm = TRUE)+
+  coord_cartesian(xlim = c(35, 38), ylim = c(0,200))
+
+```
+
+```{r eval=TRUE}
+tem <- select(signs, subject_id, Temperature, Vital_Signs_Delta, Blood_Pressure_Diastolic, Blood_Pressure_Systolic)
+tem_change <- filter(tem, subject_id >5000 & subject_id<7000)
+tem_change$subject_id <- factor(tem_change$subject_id, labels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"))
+```
+
+```{r eval=TRUE}
+ggplot(data = tem_change, mapping = aes( x = Vital_Signs_Delta, y = Temperature))+
+  geom_line(mapping = aes(color = subject_id), na.rm = TRUE)
+```
+
+```{r eval=TRUE}
+#ggplot(data = tem_change, mapping = aes(y = Blood_Pressure_Systolic, x = Temperature))+
+ # geom_point(na.rm = TRUE)+
+ # facet_wrap(~ subject_id)
+
+```
+<br>
+
+
+
+```{r eval=TRUE}
+ggplot(data = tem_change, mapping = aes( x = Vital_Signs_Delta, y = Blood_Pressure_Diastolic))+
+  geom_line(mapping = aes(color = subject_id), na.rm = TRUE)
+
+```
+
+
+```{r eval=TRUE}
+ggplot(data = tem_change, mapping = aes( x = Vital_Signs_Delta, y = Blood_Pressure_Systolic))+
+  geom_line(mapping = aes(color = subject_id), na.rm = TRUE)
+
+deltadays <- count(tem_change, Vital_Signs_Delta)
+```
+
+
+
+
+
+##
+
+```{r eval=TRUE}
+
+death <- read.csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/data/DeathData.csv")
+#death$Subject_Died <- factor(death$Subject_Died, labels=c("N", "Y"))
+as.tibble(death)
+
+Tem_Death <- tem %>% inner_join(death, by = 'subject_id' ) 
+```
+```{r eval=TRUE}
+Tem_Death_change <- filter(Tem_Death, subject_id>5000 & subject_id<7000, Subject_Died == "Yes")
+Tem_Death_change$subject_id <- factor(Tem_Death_change$subject_id, labels = c("1","2","3","4","5","6","7","8"))
+
+ggplot(data = Tem_Death_change) +
+  geom_line(mapping = aes(x = Vital_Signs_Delta, y = Temperature, color = subject_id), na.rm = TRUE)
+
+death %>% count(Subject_Died)
+```
+
+```{r eval=TRUE}
+Tem_Death_change <- filter(Tem_Death, subject_id<1700, Subject_Died == "Yes")
+Tem_Death_change$subject_id <- factor(Tem_Death_change$subject_id, labels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15"))
+
+ggplot(data = Tem_Death_change) +
+  geom_line(mapping = aes(x = Vital_Signs_Delta, y = Temperature, color = subject_id))
+
+A <-signs%>% inner_join(signs, by = subject_id)
+```
+##
+
+```{r eval=TRUE}
+ggplot(data = death) +
+  geom_bar(mapping = aes(x = Subject_Died))
+
+ggplot(data = death) +
+  geom_freqpoly(mapping = aes(x = Death_Days))
+           
+death %>% count(Subject_Died)
+```
+
+```{r eval=TRUE}
+ggplot(data = death) +
+  geom_histogram(mapping = aes(x = Death_Days))
+
+```
+ 

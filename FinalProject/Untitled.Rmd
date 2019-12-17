@@ -1,0 +1,81 @@
+---
+title: "featureselection"
+author: "Shuyang"
+date: "11/18/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ALS_FINAL <- read_csv("/Users/dengshuyang/Desktop/machinelearning/FinalProject/ALS_FINAL.csv")
+ALS_FINAL <- ALS_FINAL %>% select(-X1)
+head(ALS_FINAL)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+```{r}
+
+```
+
+```{r}
+
+```
+```{r}
+
+```
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+```{r}
+
+```
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+

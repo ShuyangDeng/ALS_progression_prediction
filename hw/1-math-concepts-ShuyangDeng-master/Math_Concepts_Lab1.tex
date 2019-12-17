@@ -1,0 +1,332 @@
+\documentclass[11pt,]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Math Concepts},
+            pdfauthor={Anna Yeaton},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\newcommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{Math Concepts}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Anna Yeaton}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{Fall 2018}
+
+
+\begin{document}
+\maketitle
+
+\section{Math Concepts}\label{math-concepts}
+
+In this lab, we will go over math concepts that serve as a foundation
+for the unsupervised learning class. We will go over standard deviation,
+variance, covariance, eigen values, and eigen vectors.
+
+\subsection{Distributions}\label{distributions}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#Gaussian(normal) distribution}
+\NormalTok{normal_dist <-}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(}\DataTypeTok{n =} \DecValTok{100}\NormalTok{, }\DataTypeTok{mean =} \DecValTok{10}\NormalTok{, }\DataTypeTok{sd =} \DecValTok{5}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(normal_dist, }\DataTypeTok{ylab=}\StringTok{"Y"}\NormalTok{, }\DataTypeTok{xlab =} \StringTok{"X"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{hist}\NormalTok{(normal_dist)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-2.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#exponential distribution}
+\NormalTok{exponential_dist <-}\StringTok{ }\KeywordTok{rexp}\NormalTok{(}\DataTypeTok{n=}\DecValTok{100}\NormalTok{, }\DataTypeTok{rate =}\DecValTok{1}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(exponential_dist, }\DataTypeTok{ylab=}\StringTok{"Y"}\NormalTok{, }\DataTypeTok{xlab =} \StringTok{"X"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-3.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{hist}\NormalTok{(exponential_dist)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-4.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#lognormal distribution}
+\NormalTok{lognormal_distribution <-}\StringTok{ }\KeywordTok{rlnorm}\NormalTok{(}\DecValTok{100}\NormalTok{, }\DataTypeTok{meanlog =} \DecValTok{10}\NormalTok{, }\DataTypeTok{sdlog =} \DecValTok{5}\NormalTok{)}
+\KeywordTok{plot}\NormalTok{(lognormal_distribution,  }\DataTypeTok{ylab=}\StringTok{"Y"}\NormalTok{, }\DataTypeTok{xlab =} \StringTok{"X"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-5.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{hist}\NormalTok{(lognormal_distribution)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-6.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{hist}\NormalTok{(}\KeywordTok{log}\NormalTok{(lognormal_distribution))}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Math_Concepts_Lab1_files/figure-latex/unnamed-chunk-1-7.pdf}
+
+\subsection{Variance}\label{variance}
+
+\[variance=\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(x_i - \bar{x})\]
+Variance is a measurememt of the spread of data.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#the spread of this set of values }
+\NormalTok{spread_ex1 <-}\StringTok{ }\KeywordTok{c}\NormalTok{(}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{2}\NormalTok{)}
+
+\CommentTok{#is much different from the spread of this set of values}
+\NormalTok{spread_ex2 <-}\StringTok{ }\KeywordTok{c}\NormalTok{(}\DecValTok{2}\NormalTok{,}\DecValTok{5}\NormalTok{,}\DecValTok{8}\NormalTok{,}\DecValTok{10}\NormalTok{,}\DecValTok{1}\NormalTok{,}\DecValTok{35}\NormalTok{,}\DecValTok{67}\NormalTok{,}\DecValTok{32}\NormalTok{,}\DecValTok{89}\NormalTok{,}\DecValTok{100}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+Calculate the variance of spread\_ex1 and spread\_ex2
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{var}\NormalTok{(spread_ex1)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.2777778
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{var}\NormalTok{(spread_ex2)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 1408.1
+\end{verbatim}
+
+\subsection{Standard deviation}\label{standard-deviation}
+
+\[stdv=\sqrt{\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(x_i - \bar{x})}\]
+
+Standard deviation is also a measurememt of the spread of data. It is
+the square root of the variance.
+
+Calculate the standard deviations of spread\_ex1 and spread\_ex2
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{sd}\NormalTok{(spread_ex1)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.5270463
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{sd}\NormalTok{(spread_ex2)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 37.52466
+\end{verbatim}
+
+\subsection{Covariance}\label{covariance}
+
+Covariance is a measure of the variance of two random variables with
+respect to each other. In other words, covariance is a measure of linear
+dependence between two random variables.
+
+\[covariance=\frac{1}{N}\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})\]
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{cov_ex1 <-}\StringTok{ }\KeywordTok{data.frame}\NormalTok{(spread_ex1, spread_ex2)}
+\end{Highlighting}
+\end{Shaded}
+
+Calculate the covariance of cov\_ex1 between spread\_ex1 and spread\_ex2
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{cov}\NormalTok{(cov_ex1}\OperatorTok{$}\NormalTok{spread_ex1, cov_ex1}\OperatorTok{$}\NormalTok{spread_ex2)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.8333333
+\end{verbatim}
+
+Calculate the covariance matrix of cov\_ex1. Did you see any of these
+values before?
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{cov}\NormalTok{(cov_ex1)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##            spread_ex1   spread_ex2
+## spread_ex1  0.2777778    0.8333333
+## spread_ex2  0.8333333 1408.1000000
+\end{verbatim}
+
+\subsection{Eigen vectors and Eigen
+values}\label{eigen-vectors-and-eigen-values}
+
+Eigen vectors and Eigen values come in pairs. An eigen vector is a
+direction, and the corresponding eigen value tells how much the data
+varies in that direction. You can only calculate eigen vectors and
+values for n x n matrices. For an n x n matrix, there will be n eigen
+values and eigen vectors. Eigen vectors are perpendicular to each other.
+The eigen vector with the highest eigen value is the principal
+component.
+
+So how do you find an eigen vector? Why is it one direction and not
+another? The eigen vector is special in that when a linear
+transformation is applied to it, the direction of the vector does not
+change.
+
+You can project the data onto an eigen vector space instead of on the X
+and Y axis. This is the visualization for PCA.
+
+\subsection{Matrix operations}\label{matrix-operations}
+
+\url{http://home.cc.umanitoba.ca/~thomas/Courses/MatrixMultPractice.pdf}
+
+
+\end{document}

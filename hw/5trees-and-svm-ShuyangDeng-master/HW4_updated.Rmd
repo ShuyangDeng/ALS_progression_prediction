@@ -1,0 +1,290 @@
+---
+title: "Tree-Based Methods and SVMs"
+author: "Shuyang"
+date: "Fall 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(randomForest)
+library(tree)
+library(caret)
+library(pROC)
+library(gbm)
+library(ROCR)
+library(mlbench)
+library(neuralnet)
+library(kernlab)
+library(caret)
+```
+
+
+```{r}
+wine <- read.csv("whitewines.csv")
+str(wine)
+```
+
+ 
+```{r}
+train_size <- floor(0.75 * nrow(wine))
+set.seed(1001)
+train_pos <- sample(seq_len(nrow(wine)), size = train_size)
+
+wine_train_regression <- wine[train_pos, ]
+wine_test_regression <- wine[-train_pos, ]
+
+dim(wine_train_regression)
+dim(wine_test_regression)
+```
+
+```{r}
+pairs.panels(wine[c("density", "fixed.acidity","alcohol","quality")])
+```
+
+Visualize data
+```{r}
+ggplot(data = wine_train_regression) +
+  geom_point(aes(x= residual.sugar, y = density, col = quality)) 
+```
+
+
+```{r}
+#create tree
+set.seed(1001)
+wine_regression_tree <- tree(quality ~ residual.sugar + density, data = wine_train_regression)
+
+plot(wine_regression_tree)
+text(wine_regression_tree,cex=0.75)
+```
+
+```{r}
+summary(wine_regression_tree)
+```
+
+Use cross validation to find the optimal number of nodes
+```{r}
+wine_tree_complexity <- cv.tree(wine_regression_tree, K = 15)
+
+
+wine_tree_complexity
+```
+
+Prune tree
+```{r}
+wine_tree_complexity_prune <- prune.tree(wine_regression_tree, best = 6)
+```
+
+Visdualize partitions of the whole tree on the dataset
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = wine_train_regression$residual.sugar, y = wine_train_regression$density, pch = 19, col =  cols(10), main = "Not pruned")
+partition.tree(wine_regression_tree,ordvars=c("residual.sugar","density"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'quality')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+
+
+```
+
+Partitions of the pruned tree on the dataset
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = wine_train_regression$residual.sugar, y = wine_train_regression$density, pch = 19, col =  cols(10), main = "Pruned")
+partition.tree(wine_tree_complexity_prune,ordvars=c("residual.sugar","density"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'quality')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+```
+
+Visualize tree on test set 
+```{r}
+layout(matrix(1:2,ncol=2), width = c(2,1),height = c(1,1))
+cols <- colorRampPalette(c("blue", "red"), 100)
+plot(x = wine_test_regression$residual.sugar, y = wine_test_regression$density, pch = 19, col =  cols(10), main = "Pruned")
+partition.tree(wine_tree_complexity_prune,ordvars=c("residual.sugar","density"),add=TRUE)
+
+legend_image <- as.raster(matrix(cols(10), ncol=1))
+plot(c(0,2),c(0,1),type = 'n', axes = F,xlab = '', ylab = '', main = 'quality')
+text(x=1.5, y = seq(0,1,l=5), labels = seq(1,10,l=5))
+rasterImage(legend_image, 0, 0, 1,1)
+```
+
+
+# Tree-based Classification
+
+```{r}
+mushrooms <- read.csv("mushrooms.csv")
+str(mushrooms)
+```
+
+```{r}
+
+train_size <- floor(0.75 * nrow(mushrooms))
+set.seed(1001)
+train_pos <- sample(seq_len(nrow(mushrooms)), size = train_size)
+                           
+train_classification <- mushrooms[train_pos, ]
+test_classification <- mushrooms[-train_pos, ]
+
+dim(train_classification)
+dim(test_classification)
+```
+
+Visualize data
+```{r}
+par(mfrow= c(1,2))
+
+barplot(table(train_classification$type,factor(train_classification$cap_shape)),
+  xlab="cap_shape", col=c("darkblue","red"),
+ 	legend = rownames(table(train_classification$type,train_classification$cap_shape)))
+
+barplot(table(train_classification$type,factor(train_classification$cap_color)), 
+  xlab="cap_color", col=c("darkblue","red"),
+ 	legend = rownames(table(train_classification$type,train_classification$cap_color)))
+
+```
+
+Create a classification tree
+```{r}
+set.seed(30490)
+classification_tree <- tree(type ~ cap_shape + cap_color , data = train_classification, split = "gini")
+plot(classification_tree)
+text(classification_tree,cex=0.45)
+```
+
+```{r}
+summary(classification_tree)
+```
+
+Test this tree on the test set
+```{r}
+classification_test <- predict(classification_tree, newdata = test_classification, type = "class")
+
+confusionMatrix(classification_test, reference = test_classification$type)
+```
+
+Fit the tree using cross validation. Use FUN = prune.misclass to indicate we want to classification error to guide cross val and pruning. 
+```{r}
+fit_classification_tree <- cv.tree(classification_tree,FUN=prune.misclass, K = 15)
+```
+
+
+```{r}
+fit_classification_tree
+```
+
+Now prune the tree 
+```{r}
+prune_classification_tree=prune.misclass(classification_tree, best=29)
+
+plot(prune_classification_tree)
+text(prune_classification_tree,cex=0.45)
+```
+
+Test the pruned tree on the test set
+```{r}
+classification_test_pruned <- predict(prune_classification_tree, newdata = test_classification, type = "class")
+
+confusionMatrix(classification_test_pruned, reference = test_classification$type)
+```
+
+
+
+
+# Bagged classification Tree
+
+
+```{r}
+set.seed(30490)
+bag_classification <- randomForest(type ~ cap_shape+ cap_color , data=train_classification, 
+                                   mtry= 2, importance = TRUE, oob.times = 15, confusion = T)
+```
+
+```{r}
+bag_classification
+```
+
+Vizualize OOB
+```{r}
+plot(bag_classification$err.rate[,1], type = "l", xlab = "Number of trees", ylab = "Error rate")
+```
+
+Look at importance of features
+```{r}
+importance(bag_classification)
+```
+
+Test bagged tree on test data
+```{r}
+test_bag_classification <- predict (bag_classification , newdata =test_classification)
+
+confusionMatrix(test_bag_classification, reference = test_classification$type)
+```
+
+
+
+
+#Support Vector Machine
+
+
+Train linear SVM
+```{r}
+set.seed(30490)
+mushrooms_classifier <- ksvm(type ~ cap_shape + cap_color, data = train_classification, kernel = "vanilladot")
+
+mushrooms_classifier
+```
+
+```{r}
+mushrooms_predictions <- predict(mushrooms_classifier, test_classification)
+table(mushrooms_predictions, test_classification$type)
+```
+
+
+
+
+
+
+```{r}
+agreement <- mushrooms_predictions == test_classification$type
+
+table(agreement)
+
+prop.table(table(agreement))
+```
+
+
+```{r}
+mushrooms_classifier_rbf <- ksvm(type ~ cap_shape+cap_color, data = train_classification, kernel = "rbfdot")
+```
+
+```{r}
+mushrooms_predictions_rbf <- predict(mushrooms_classifier_rbf, test_classification)
+```
+
+```{r}
+agreement_rbf <- mushrooms_predictions_rbf == test_classification$type
+```
+
+```{r}
+table(agreement_rbf)
+```
+
+```{r}
+prop.table(table(agreement_rbf))
+```
+
+
+

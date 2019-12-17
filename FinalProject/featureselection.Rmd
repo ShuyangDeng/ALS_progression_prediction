@@ -1,0 +1,275 @@
+---
+title: "featureselection"
+author: "Shuyang"
+date: "11/18/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = T)
+```
+
+```{r, include=FALSE}
+library(caret)
+library(pROC)
+library(MASS)
+library(ggplot2)
+library(gridExtra)
+library(devtools)
+library(dplyr)
+library(ggfortify)
+library(glmnet)
+library(tidyverse)
+library(Hmisc)
+library(stats)
+library(mlbench)
+library(psych)
+```
+
+
+
+
+```{r}
+setwd("/Users/dengshuyang/Desktop/machinelearning/FinalProject")
+ALS_FINAL <- read.csv("ALS_FINAL.csv")
+ALS_FINAL <- ALS_FINAL %>% select(-X)
+head(ALS_FINAL)
+```
+
+```{r}
+dim(ALS_FINAL)
+```
+
+```{r}
+training_set_size <- floor(0.75 * nrow(ALS_FINAL))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(ALS_FINAL)), size = training_set_size)
+training_set <- ALS_FINAL[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set <- ALS_FINAL[-train_samples, ]
+
+dim(training_set)
+```
+
+```{r}
+dim(test_set)
+```
+
+```{r}
+library(factoextra)
+
+fviz_nbclust(training_set, clara, method = "silhouette")
+
+km.res <- kmeans(training_set, 3)
+```
+
+```{r}
+cluster<-clara(training_set[,-1],k = 2)
+clusters <- cluster$clustering
+#first cluster
+training_set_clusters <- training_set %>% mutate(Cluster_Number=clusters)
+training_set_cluster_1 <- training_set_clusters %>% filter(Cluster_Number==1) %>% select(-subject_id)
+training_set_cluster_1 <- as.data.frame(training_set_cluster_1)
+#second cluster
+training_set_cluster_2 <- training_set_clusters %>% filter(Cluster_Number==2) %>% select(-subject_id)
+training_set_cluster_2 <- as.data.frame(training_set_cluster_2)
+```
+
+```{r}
+source("http://bioconductor.org/biocLite.R")
+biocLite("pcaGoPromoter")
+library(ellipse)
+
+```
+
+
+```{r eval=TRUE}
+cluster<-clara(ALS_FINAL[,-1],k = 2)
+clusters <- cluster$clustering
+training_set_clusters <- ALS_FINAL %>% mutate(Cluster_Number=clusters)
+#first cluster
+training_set_cluster_1 <- training_set_clusters %>% filter(Cluster_Number==1) %>% select(-subject_id)
+training_set_cluster_1 <- as.data.frame(training_set_cluster_1)
+#second cluster
+training_set_cluster_2 <- training_set_clusters %>% filter(Cluster_Number==2) %>% select(-subject_id)
+training_set_cluster_2 <- as.data.frame(training_set_cluster_2)
+```
+
+
+
+```{r}
+training_set_clusters$Cluster_Number <- as.factor(training_set_clusters$Cluster_Number)
+autoplot(cluster, data=training_set_clusters, colour="Cluster_Number") + labs(title="CLARA Clustering", x="PC1", y="PC2", color="Cluster_Number")
+```
+
+```{r}
+training_set_cluster_1_file <- training_set_clusters %>% filter(Cluster_Number==1) %>% select(subject_id, ALSFRS_Slope, Q2_Salivation, Q3_Swallowing, Bulbar_Onset, Subject_Liters_Trial_1, ALSFRS_Total, Limb_Onset)
+write.csv(training_set_cluster_1_file, file = "cluster_1.csv")
+
+#cluster 2
+training_set_cluster_2_file <- training_set_clusters %>% filter(Cluster_Number==2) %>% select(subject_id, ALSFRS_Slope, Q3_Swallowing, Q2_Salivation, Bulbar_Onset, Limb_Onset, Q7_Turning_in_Bed,Subject_Liters_Trial_1)
+write.csv(training_set_cluster_2_file, file = "cluster_2.csv")
+```
+
+
+```{r}
+training_set_size <- floor(0.75 * nrow(training_set_cluster_1_file))
+#for reproducibility
+set.seed(543)
+#out of the 1599 samples, pick 1199 samples(based on the training_set_size) randomly for the training set
+train_samples <- sample(seq_len(nrow(training_set_cluster_1_file)), size = training_set_size)
+training_set_clus1 <- training_set_cluster_1_file[train_samples, ]
+#the remaining 400 rows that were not included in the training set would be designated as the test set 
+test_set_clus1 <- training_set_cluster_1_file[-train_samples, ]
+
+dim(training_set_clus1)
+dim(test_set_clus1)
+```
+
+
+```{r}
+# Custom Control Parameters
+custom <- trainControl(method = "repeatedcv", number=10, repeats = 5, verboseIter = T)
+```
+
+```{r}
+set.seed(1234)
+lm <- train(ALSFRS_Slope ~ ., training_set_clus1, method="lm", trControl=custom)
+```
+
+```{r}
+lm$results
+```
+
+```{r}
+lm
+```
+```{r}
+summary(lm)
+```
+
+
+```{r}
+plot(lm$finalModel)
+```
+
+```{r}
+ridge <- train(ALSFRS_Slope ~ . -subject_id, data=training_set_clus1, method="glmnet", tuneGrid=expand.grid(alpha=0,
+                                                                                                            lambda=seq(0.0001,0.09,length=5)), trControl=custom)
+```
+
+```{r}                          
+plot(ridge)             
+```
+
+```{r}
+ridge
+```
+
+```{r}
+plot(varImp(ridge,scale=F))
+```
+```{r}
+plot(ridge$finalModel, xvar="lambda", label=T)
+```
+```{r}
+plot(ridge$finalModel, xvar="dev", label=T)
+```
+
+```{r}
+# Lasso Regression
+set.seed(1234)
+lasso <- train(ALSFRS_Slope ~ .-subject_id,data=training_set_clus1, method="glmnet", tuneGrid=expand.grid(alpha=1,lambda=seq(0.0001,0.2,length=5)), trControl=custom )
+```
+
+```{r}
+plot(lasso)
+```
+
+```{r}
+lasso
+```
+
+```{r}
+plot(lasso$finalModel,xvar="lambda", label=T)
+```
+
+```{r}
+plot(lasso$finalModel,xvar="dev",label=T)
+
+```
+
+```{r}
+plot(varImp(lasso,scale=F))
+```
+
+```{r}
+set.seed(1234)
+en <- train(ALSFRS_Slope ~ .-subject_id, training_set_clus1, method="glmnet", tuneGrid=expand.grid(alpha=seq(0,1,length=10), lambda=seq(0.0001, 0.001, length=5)), trControl=custom)
+```
+
+```{r}
+plot(en)
+```
+
+```{r}
+plot(en$finalModel,xvar="lambda",label=T)
+```
+
+```{r}
+plot(en$finalModel,xvar="dev",label=T)
+```
+
+```{r}
+plot(varImp(en))
+```
+
+```{r}
+# Compare Models
+model_list <- list(LinearModel=lm, Ridge=ridge, Lasso=lasso, ElasticNet=en)
+res <- resamples(model_list)
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+bwplot(res)
+```
+```{r}
+xyplot(res,metric="RMSE")
+```
+```{r}
+# Best
+en$bestTune
+```
+```{r}
+best <- en$finalModel
+coef(best, s=en$bestTune$lambda)
+```
+
+```{r}
+saveRDS(en, "final_model.rds")
+fm <- readRDS("final_model.rds")
+print(fm)
+```
+
+```{r}
+prediction_1 <- predict(fm, training_set_clus1)
+sqrt(mean((training_set_clus1$ALSFRS_Slope-prediction_1)^2))
+```
+
+```{r}
+p1 <- predict(fm, test_set_clus1)
+sqrt(mean((training_set_clus1$ALSFRS_Slope-p1)^2))
+```
+
+
+
+
+
+
+
